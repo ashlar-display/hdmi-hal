@@ -51,6 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set), that a PHY unable to restrict its TxFFE may ignore the bits if it says so, and
   that AMD's "both only bits" leaves neither component without being identical to its
   `no_ffe` setting. No API change.
+- **Moved to the `ashlar-display` organization** — the repository is now
+  `ashlar-display/hdmi-hal` (the old URLs redirect), and `repository` points there.
+  Releases are attested and published from the new repository; 0.4.0 to 0.5.1, attested
+  before the move, verify with `--owner DracoWhitefire --signer-repo
+  DracoWhitefire/hdmi-hal` (see "Verifying releases" in the README). The code of conduct is
+  now the organization's, shared by every Ashlar repository; the repository's own copy is
+  removed.
 
 ## [0.5.1] - 2026-10-12
 

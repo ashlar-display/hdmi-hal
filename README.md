@@ -1,6 +1,6 @@
 # hdmi-hal
 
-[![CI](https://github.com/DracoWhitefire/hdmi-hal/actions/workflows/ci.yml/badge.svg)](https://github.com/DracoWhitefire/hdmi-hal/actions/workflows/ci.yml)
+[![CI](https://github.com/ashlar-display/hdmi-hal/actions/workflows/ci.yml/badge.svg)](https://github.com/ashlar-display/hdmi-hal/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/hdmi-hal.svg)](https://crates.io/crates/hdmi-hal)
 [![docs.rs](https://docs.rs/hdmi-hal/badge.svg)](https://docs.rs/hdmi-hal)
 [![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
@@ -115,11 +115,19 @@ Releases are built on GitHub Actions and attested with
 [GitHub CLI](https://cli.github.com/) and run:
 
 ```sh
-gh attestation verify hdmi-hal-X.Y.Z.crate --repo DracoWhitefire/hdmi-hal
+gh attestation verify hdmi-hal-X.Y.Z.crate --repo ashlar-display/hdmi-hal
+```
+
+Releases from before the repository moved to the `ashlar-display` organization (0.4.0 to
+0.5.1) were attested under its previous owner, and verify against it:
+
+```sh
+gh attestation verify hdmi-hal-X.Y.Z.crate --owner DracoWhitefire \
+  --signer-repo DracoWhitefire/hdmi-hal
 ```
 
 The attested `.crate` is attached to each
-[GitHub release](https://github.com/DracoWhitefire/hdmi-hal/releases).
+[GitHub release](https://github.com/ashlar-display/hdmi-hal/releases).
 
 Releases after 0.4.1 are uploaded through crates.io
 [trusted publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html): the publish
