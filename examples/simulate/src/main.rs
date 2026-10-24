@@ -39,6 +39,15 @@ impl ScdcTransport for SimulatedScdc {
         self.registers[reg as usize] = value;
         Ok(())
     }
+
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+        // A register array holds still while it is read, so one copy is one
+        // transaction. Past 0xFF it wraps rather than panicking.
+        for (offset, byte) in buf.iter_mut().enumerate() {
+            *byte = self.registers[(reg as usize + offset) % 256];
+        }
+        Ok(())
+    }
 }
 
 struct SimulatedPhy;

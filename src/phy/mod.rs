@@ -119,17 +119,22 @@ pub struct LaneEqParams {
 /// - `de_emphasis_only` (`TxFFE_De_Emphasis_Only`): de-emphasis only, no pre-shoot.
 /// - `no_ffe` (`TxFFE_No_FFE`): neither.
 ///
-/// The default (no bit set) restricts nothing. The bits accompany a compliance test: the
-/// reference drivers that act on them do so while the sink requests the DDE compliance
-/// pattern (LTP 4).
+/// The default (no bit set) restricts nothing, for every backend: full TxFFE, as before
+/// the restrictions existed. The bits accompany a compliance test. Of the reference
+/// drivers that act on them, the Rockchip one does so only after the sink requests the DDE
+/// compliance pattern (LTP 4) on a lane; the AMD one applies them with every TxFFE setting
+/// during link training.
 ///
-/// How to combine them is the PHY's to decide, because the reference implementations
+/// How to combine the bits is the PHY's to decide, because the reference implementations
 /// disagree and the specification text is not available to this crate. The AMD display
 /// driver (`dpcs30_program_eq_setting`) treats each "only" bit as removing the other
-/// component, so both set gives no FFE, and `no_ffe` overrides both. The Rockchip HDPTX
-/// PHY driver treats bits 1–2 as enabling their component, so both set gives full FFE,
-/// and does not read `no_ffe`. A backend documents which it follows. The level in each
-/// lane's [`LaneEqParams`] still applies within what the restrictions allow.
+/// component, so both set leaves neither (not quite its `no_ffe` setting, which also
+/// changes the main cursor), and `no_ffe` overrides both. The Rockchip HDPTX PHY driver
+/// treats bits 1–2 as enabling their component, so both set gives full FFE, and does not
+/// read `no_ffe`; that reading applies only once a bit is set, never to the default. A
+/// backend documents which it follows. One that cannot restrict its TxFFE may ignore the
+/// bits, and says so: a compliance test then fails, not the link. The level in each lane's
+/// [`LaneEqParams`] still applies within what the restrictions allow.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct TxFfeRestrictions {

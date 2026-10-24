@@ -79,9 +79,16 @@ pub trait ScdcTransport {
     fn read(&self, reg: u8) -> Result<u8, Self::Error>;
     fn write(&mut self, reg: u8, value: u8) -> Result<(), Self::Error>;
 
-    /// Default: one `read` per byte. Override for a single burst transaction.
-    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Self::Error> { ... }
+    /// One DDC transaction for the whole buffer, or an error. Required.
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Self::Error>;
 }
+
+/// One `read` per byte: for a transport that cannot burst-read.
+pub fn read_block_bytewise<T: ScdcTransport + ?Sized>(
+    transport: &T,
+    reg: u8,
+    buf: &mut [u8],
+) -> Result<(), T::Error> { ... }
 ```
 
 The trait operates at the raw register level: a one-byte address and a one-byte value.
@@ -93,12 +100,42 @@ move.
 The associated `Error` type is bounded by the implementing crate. A hardware backend
 exposes its own I²C error type; a simulator may use `Infallible`.
 
-**Block reads.** `read_block` reads consecutive registers into a buffer. Its default
-implementation is built on `read`, so existing transports keep working unchanged;
-transports that can burst-read override it so that related registers, such as the
-status flags the link training crate polls or the CED counters, are read in one
-transaction. A read past `0xFF` wraps to `0x00` in the default implementation. There is
-no block write: no consumer needs one yet.
+**Block reads.** `read_block` reads consecutive registers into a buffer in one
+transaction, so that the transport does not split related registers, such as the status
+flags the link training crate polls or the CED counters. The full contract is in the
+trait's documentation, the single source of truth; in short:
+
+- `buf[i]` is register `reg + i`, read as one combined transfer to the layer below (on
+  DDC: offset write, repeated START, `buf.len()` bytes read, STOP) or not at all: an
+  implementation never splits the read and never falls back to one register at a time,
+  and concurrent calls do not interleave on the bus. Over an OS bus driver the transfer
+  is handed over whole; a driver known to split it on the wire (the Synopsys DesignWare
+  HDMI controller's I²C master reads byte by byte, `dw_hdmi_i2c_read` in Linux) is named
+  in the transport's documentation.
+- One transaction is not a snapshot: whether the sink holds its registers still is up to
+  the sink. The CED checksum (culvert) is the one protection that does not depend on
+  either.
+- An implementation may have a documented maximum length of at least 16 bytes; a longer
+  buffer is an error, not split. 16 is generic, not SCDC-shaped: it covers the CED block
+  (9 bytes) with room, and a register dump reads in 16-byte parts on any transport.
+- An empty buffer is `Ok` with no bus activity; on error the buffer is unspecified; a
+  read past `0xFF` is unspecified, but never panics.
+- After an error the transport should stay usable (the trait's "Errors"); one that cannot
+  documents how to recover.
+
+Not in the contract yet, and additive when a consumer can use them: a way for a transport
+to say whether its block reads are atomic, and its maximum length, as methods with
+defaults (unknown; the 16-byte minimum).
+
+The method is required. A transport that cannot burst-read implements it with
+`read_block_bytewise`, one `read` per byte, the documented exception to the "one
+transaction" rule. An earlier version had that loop as a default implementation; it was
+removed because a transport whose author never thought about block reads would then
+tear related registers without anyone noticing. With a required method, the choice is
+visible in every transport's code. The helper is generic over the trait, not an
+implementation for any platform, so it is consistent with "contracts only" below.
+
+There is no block write: no consumer needs one yet.
 
 ---
 
@@ -154,11 +191,15 @@ the sink by the link training crate, which keeps each lane's level within it.
 
 `EqParams` also carries `tx_ffe_restrictions`: the three TxFFE bits a compliance tester
 can set in `Source_Test_Configuration` (pre-shoot only, de-emphasis only, no FFE), for the
-whole link, exactly as written. Combining them is left to the PHY, which documents its
-choice: the reference implementations disagree (the AMD display driver treats both "only"
-bits as no FFE and lets no FFE override, the Rockchip HDPTX PHY driver treats them as
-full FFE and ignores no FFE), and the specification text is not available. Every
-`adjust_equalization` call carries the complete settings, restrictions included.
+whole link, exactly as written; no bit set means unrestricted TxFFE for every backend.
+Combining them is left to the PHY, which documents its choice: the reference
+implementations disagree (the AMD display driver treats both "only" bits as leaving
+neither component and lets no FFE override, the Rockchip HDPTX PHY driver treats them as
+full FFE and ignores no FFE), and the specification text is not available. A PHY that
+cannot restrict its TxFFE may ignore them and says so. The Rockchip driver applies them
+only after the sink requests the DDE compliance pattern (LTP 4) on a lane, the AMD driver
+with every TxFFE setting. Every `adjust_equalization` call carries the complete settings,
+restrictions included.
 
 `set_frl_output` takes `FrlOutput`: `GapOnly` (gap characters only, during link training
 and while waiting for the sink to start FRL) or `Active` (video, data islands and control
@@ -263,6 +304,10 @@ impl ScdcTransport for SimulatedScdc {
         self.registers[reg as usize] = value;
         Ok(())
     }
+
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+        read_block_bytewise(self, reg, buf)
+    }
 }
 ```
 
@@ -304,4 +349,6 @@ simulated register array, without requiring real hardware or a kernel I²C drive
   type system.
 - **Attested releases.** Every release is published through a GitHub Actions workflow
   that signs the `.crate` package with [SLSA Build Level 2](https://slsa.dev) provenance.
-  Verify with `gh attestation verify <file> --repo DracoWhitefire/hdmi-hal`.
+  Verify with `gh attestation verify <file> --repo ashlar-display/hdmi-hal` (releases from
+  before the move to the `ashlar-display` organization: see "Verifying releases" in the
+  README).

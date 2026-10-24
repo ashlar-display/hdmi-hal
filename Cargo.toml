@@ -1,14 +1,15 @@
 [package]
 name = "hdmi-hal"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.85"
 readme = "README.md"
 license = "MPL-2.0"
 description = "Hardware abstraction traits for the HDMI stack"
-repository = "https://github.com/DracoWhitefire/hdmi-hal"
-keywords = ["hdmi", "hal", "embedded", "display", "no-std"]
-categories = ["embedded", "hardware-support", "no-std"]
+repository = "https://github.com/ashlar-display/hdmi-hal"
+homepage = "https://ashlar-display.org"
+keywords = ["ashlar", "hdmi", "no-std", "hal", "embedded"]
+categories = ["embedded", "hardware-support", "no-std", "no-std::no-alloc"]
 
 [dependencies]
 display-types = { version = "0.4", default-features = false }

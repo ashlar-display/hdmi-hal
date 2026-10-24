@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-24
+
+### Breaking changes
+
+- **`ScdcTransport::read_block` is a required method.** Its default implementation (one
+  `read` per byte) is gone: a transport whose author never considered block reads would
+  read related registers, such as the CED counters, one at a time and could return values
+  torn by a sink update, with nothing to show for it. A transport that reads several
+  registers in one DDC transaction implements `read_block` with it; one that cannot adds
+  `use hdmi_hal::scdc::read_block_bytewise;` and
+  `fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Self::Error> {
+  read_block_bytewise(self, reg, buf) }`, which behaves as the old default did.
+- **`read_block`'s contract is written down, and it is stricter than the old default.**
+  An existing override must be checked against it: the whole buffer as one combined
+  transfer to the layer below, or an error — never split, never a fallback to one
+  register at a time (a bus driver known to split it is named in the transport's docs);
+  no consistent snapshot promised (that is the sink's); a maximum length, if any,
+  documented and of at least 16 bytes, above which a read is an error; an empty buffer is
+  `Ok` with no bus activity; on error the buffer is unspecified; a read past `0xFF` is
+  unspecified but never panics. The old default's wrap to `0x00` past `0xFF` is no
+  longer promised (`read_block_bytewise` still wraps).
+
+### Added
+
+- **`scdc::read_block_bytewise(transport, reg, buf)`** — `read_block` as one `read` per
+  byte, for transports that cannot burst-read; the documented exception to the "one
+  transaction" rule. Generic over `T: ScdcTransport + ?Sized`.
+- **"Errors" on `ScdcTransport`:** after an error an implementation should stay usable for
+  the next call; one that cannot documents how to recover.
+
+### Changed
+
+- **Part of Ashlar** — the README now opens with a block naming the
+  [Ashlar](https://ashlar-display.org) stack and linking the other crates in it. Keywords
+  are aligned across the stack, with `ashlar` and `hdmi` on every crate; `ashlar` is added,
+  `display` is dropped. Categories gain `no-std::no-alloc`. The crate's `homepage` is now
+  the Ashlar website.
+
+- **`TxFfeRestrictions`' documentation corrected and completed.** 0.5.1 said the
+  reference drivers act on the bits while the sink requests the DDE compliance pattern
+  (LTP 4); only the Rockchip driver does, the AMD driver applies them with every TxFFE
+  setting. The contract now also says that no bit set means unrestricted TxFFE for every
+  backend (the Rockchip reading, where bits enable components, applies only once a bit is
+  set), that a PHY unable to restrict its TxFFE may ignore the bits if it says so, and
+  that AMD's "both only bits" leaves neither component without being identical to its
+  `no_ffe` setting. No API change.
+- **Moved to the `ashlar-display` organization** — the repository is now
+  `ashlar-display/hdmi-hal` (the old URLs redirect), and `repository` points there.
+  Releases are attested and published from the new repository; 0.4.0 to 0.5.1, attested
+  before the move, verify with `--owner DracoWhitefire --signer-repo
+  DracoWhitefire/hdmi-hal` (see "Verifying releases" in the README). The code of conduct is
+  now the organization's, shared by every Ashlar repository; the repository's own copy is
+  removed.
+
 ## [0.5.1] - 2026-10-12
 
 ### Added
