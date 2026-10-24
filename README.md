@@ -46,6 +46,12 @@ impl ScdcTransport for MyI2cBackend {
 
     fn read(&self, reg: u8) -> Result<u8, MyError> { /* ... */ }
     fn write(&mut self, reg: u8, value: u8) -> Result<(), MyError> { /* ... */ }
+
+    // One DDC transaction for the whole buffer (a length limit, if any, of at least
+    // 16 bytes). A backend that cannot burst-read
+    // implements this with `hdmi_hal::scdc::read_block_bytewise(self, reg, buf)` and
+    // says so: its reads are then one register at a time.
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), MyError> { /* ... */ }
 }
 ```
 
