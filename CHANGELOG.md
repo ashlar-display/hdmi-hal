@@ -14,18 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read related registers, such as the CED counters, one at a time and could return values
   torn by a sink update, with nothing to show for it. A transport that reads several
   registers in one DDC transaction implements `read_block` with it; one that cannot adds
+  `use hdmi_hal::scdc::read_block_bytewise;` and
   `fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Self::Error> {
   read_block_bytewise(self, reg, buf) }`, which behaves as the old default did.
+- **`read_block`'s contract is written down, and it is stricter than the old default.**
+  An existing override must be checked against it: the whole buffer as one combined
+  transfer to the layer below, or an error — never split, never a fallback to one
+  register at a time (a bus driver known to split it is named in the transport's docs);
+  no consistent snapshot promised (that is the sink's); a maximum length, if any,
+  documented and of at least 16 bytes, above which a read is an error; an empty buffer is
+  `Ok` with no bus activity; on error the buffer is unspecified; a read past `0xFF` is
+  unspecified but never panics. The old default's wrap to `0x00` past `0xFF` is no
+  longer promised (`read_block_bytewise` still wraps).
 
 ### Added
 
-- **`scdc::`read_block_bytewise`(transport, reg, buf)`** — `read_block` as one `read` per
+- **`scdc::read_block_bytewise(transport, reg, buf)`** — `read_block` as one `read` per
   byte, for transports that cannot burst-read; the documented exception to the "one
   transaction" rule. Generic over `T: ScdcTransport + ?Sized`.
-- **`read_block`'s contract** is spelled out in its documentation: one DDC transaction or
-  an error, never split; no consistent snapshot promised (that is the sink's); an optional,
-  documented maximum length, above which a read is an error; an empty buffer is `Ok` with
-  no bus activity; on error the buffer is unspecified; a read past `0xFF` is unspecified.
+- **"Errors" on `ScdcTransport`:** after an error an implementation should stay usable for
+  the next call; one that cannot documents how to recover.
 
 ### Changed
 

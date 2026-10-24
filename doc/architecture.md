@@ -100,22 +100,32 @@ move.
 The associated `Error` type is bounded by the implementing crate. A hardware backend
 exposes its own I²C error type; a simulator may use `Infallible`.
 
-**Block reads.** `read_block` reads consecutive registers into a buffer in one DDC
-transaction, so that related registers, such as the status flags the link training
-crate polls or the CED counters, cannot be read half before and half after the sink
-updates them. The full contract is in the trait's documentation, the single source of
-truth; in short:
+**Block reads.** `read_block` reads consecutive registers into a buffer in one
+transaction, so that the transport does not split related registers, such as the status
+flags the link training crate polls or the CED counters. The full contract is in the
+trait's documentation, the single source of truth; in short:
 
-- `buf[i]` is register `reg + i`, read in one transaction (offset write, repeated START,
-  `buf.len()` bytes read, STOP) or not at all: an implementation never splits the read
-  and never falls back to one register at a time, and concurrent calls do not interleave
-  on the bus.
+- `buf[i]` is register `reg + i`, read as one combined transfer to the layer below (on
+  DDC: offset write, repeated START, `buf.len()` bytes read, STOP) or not at all: an
+  implementation never splits the read and never falls back to one register at a time,
+  and concurrent calls do not interleave on the bus. Over an OS bus driver the transfer
+  is handed over whole; a driver known to split it on the wire (the Synopsys DesignWare
+  HDMI controller's I²C master reads byte by byte, `dw_hdmi_i2c_read` in Linux) is named
+  in the transport's documentation.
 - One transaction is not a snapshot: whether the sink holds its registers still is up to
-  the sink.
-- An implementation may have a documented maximum length; a longer buffer is an error,
-  not split.
+  the sink. The CED checksum (culvert) is the one protection that does not depend on
+  either.
+- An implementation may have a documented maximum length of at least 16 bytes; a longer
+  buffer is an error, not split. 16 is generic, not SCDC-shaped: it covers the CED block
+  (9 bytes) with room, and a register dump reads in 16-byte parts on any transport.
 - An empty buffer is `Ok` with no bus activity; on error the buffer is unspecified; a
-  read past `0xFF` is unspecified.
+  read past `0xFF` is unspecified, but never panics.
+- After an error the transport should stay usable (the trait's "Errors"); one that cannot
+  documents how to recover.
+
+Not in the contract yet, and additive when a consumer can use them: a way for a transport
+to say whether its block reads are atomic, and its maximum length, as methods with
+defaults (unknown; the 16-byte minimum).
 
 The method is required. A transport that cannot burst-read implements it with
 `read_block_bytewise`, one `read` per byte, the documented exception to the "one
