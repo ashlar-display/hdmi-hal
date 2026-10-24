@@ -349,4 +349,6 @@ simulated register array, without requiring real hardware or a kernel I²C drive
   type system.
 - **Attested releases.** Every release is published through a GitHub Actions workflow
   that signs the `.crate` package with [SLSA Build Level 2](https://slsa.dev) provenance.
-  Verify with `gh attestation verify <file> --repo DracoWhitefire/hdmi-hal`.
+  Verify with `gh attestation verify <file> --repo ashlar-display/hdmi-hal` (releases from
+  before the move to the `ashlar-display` organization: see "Verifying releases" in the
+  README).
