@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`display-types` dependency bumped from `0.4` to `0.5`.**
+
 ## [0.6.0] - 2026-10-24
 
 ### Breaking changes
