@@ -94,7 +94,7 @@ pub fn read_block_bytewise<T: ScdcTransport + ?Sized>(
 The trait operates at the raw register level: a one-byte address and a one-byte value.
 The typed SCDC register wrappers — named constants, bitfield structs, multi-register
 sequences — belong in the `culvert` crate, not here. Keeping this boundary clean means
-`hdmi-hal` encodes no knowledge of the SCDC specification; it only describes how bytes
+`hdmi-hal` encodes no knowledge of the SCDC register map; it only describes how bytes
 move.
 
 The associated `Error` type is bounded by the implementing crate. A hardware backend
@@ -195,7 +195,7 @@ whole link, exactly as written; no bit set means unrestricted TxFFE for every ba
 Combining them is left to the PHY, which documents its choice: the reference
 implementations disagree (the AMD display driver treats both "only" bits as leaving
 neither component and lets no FFE override, the Rockchip HDPTX PHY driver treats them as
-full FFE and ignores no FFE), and the specification text is not available. A PHY that
+full FFE and ignores no FFE), and no public source settles it. A PHY that
 cannot restrict its TxFFE may ignore them and says so. The Rockchip driver applies them
 only after the sink requests the DDE compliance pattern (LTP 4) on a lane, the AMD driver
 with every TxFFE setting. Every `adjust_equalization` call carries the complete settings,
@@ -321,17 +321,17 @@ simulated register array, without requiring real hardware or a kernel I²C drive
 - **Contracts only.** No implementation of any trait lives in this crate. The moment an
   implementation appears here, it becomes a platform assumption baked into a foundational
   dependency.
-- **Spec accuracy and completeness.** Trait surfaces must not omit operations the
-  specification defines. A method left out because it seems unlikely to be needed now
-  is a missing contract that forces a breaking change or a fork later. What callers
-  choose to use is their decision; what the spec defines is the scope.
+- **Accuracy and completeness.** Trait surfaces must not omit operations the standard
+  defines. A method left out because it seems unlikely to be needed now is a missing
+  contract that forces a breaking change or a fork later. What callers choose to use is
+  their decision; what the standard defines is the scope.
 - **Stack-ordered delivery.** The 0.1.0 release scope covers what the next layer in the
-  stack needs to function. Everything else the spec defines still gets built, but is
+  stack needs to function. Everything else the standard defines still gets built, but is
   tracked on the roadmap until the layer that needs it is being implemented. This is a
   sequencing decision, not a judgement about what is worth implementing.
 - **Raw boundaries, typed protocols.** `ScdcTransport` is intentionally byte-level.
   The typed SCDC register map belongs in the protocol crate. Mixing them would encode
-  HDMI specification knowledge into what should be a pure I/O contract.
+  HDMI protocol knowledge into what should be a pure I/O contract.
 - **Deterministic and testable.** Every consumer of a trait in this crate must be fully
   exercisable with a simulated implementation. Hardware is never a test dependency.
 - **No unsafe code.** `#![forbid(unsafe_code)]` is a hard constraint. Hardware register
