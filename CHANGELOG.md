@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking changes
+### Changed
 
-- **`display-types` dependency bumped from `0.4` to `0.5`.**
+- **`display-types` requirement widened to `>=0.4.3, <0.6`**, so both 0.4.3 and 0.5 are
+  accepted. The display-types items hdmi-hal uses and re-exports are the same in both, so
+  this is not a breaking change: an existing dependency on display-types 0.4 keeps
+  resolving, and one on 0.5 now lines up with hdmi-hal's.
 
 ## [0.6.0] - 2026-10-24
 
