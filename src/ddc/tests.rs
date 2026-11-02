@@ -150,6 +150,12 @@ fn unit_error_is_other() {
 }
 
 #[test]
+fn a_kind_is_its_own_error() {
+    let kind = DdcErrorKind::NoAcknowledge(NoAcknowledgeSource::Data);
+    assert_eq!(kind.kind(), kind);
+}
+
+#[test]
 fn infallible_is_a_ddc_error() {
     fn kind_of<E: DdcError>(result: Result<(), E>) -> Option<DdcErrorKind> {
         result.err().map(|e| e.kind())
@@ -238,12 +244,6 @@ impl DdcBus for MockBus {
         self.transactions.set(self.transactions.get() + 1);
         buf.copy_from_slice(&self.edid[start..start + buf.len()]);
         Ok(())
-    }
-}
-
-impl DdcError for DdcErrorKind {
-    fn kind(&self) -> DdcErrorKind {
-        *self
     }
 }
 

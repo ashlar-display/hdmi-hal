@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`ScdcTransport::Error` is bounded by `DdcError`.** Every transport error now carries a
+  `DdcErrorKind`, so generic code can tell a sink that does not answer from a bus that timed
+  out, was busy or is gone. `DdcError` is implemented for `Infallible`, `()` and
+  `DdcErrorKind`; a transport with its own error type implements `DdcError::kind` for it
+  (`Other` where it cannot tell). Outside hdmi-hal, `DdcError` cannot be implemented for
+  another foreign type such as `u8`: such a transport needs an error type of its own.
+
 ### Added
 
 - **`ddc` module: `DdcBus`, one trait for a connector's whole DDC bus.** `write`,
@@ -26,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`EddcTarget`** and constants for the bus's addresses (`SEGMENT_POINTER`, `EDID`,
   `DISPLAYID`, `SCDC`, `HDCP_PRIMARY`, `HDCP_SECONDARY`, `DDC_CI`), and
   `is_usable_address`.
+- **`scdc::ScdcOverDdc`, `ScdcTransport` over a `DdcBus`.** Reads and block reads are one
+  `write_read` at 0x54 each, writes one `write`; it holds any handle that dereferences to the
+  bus (`&B`, `Rc<B>`, `Arc<B>`), so other users share the bus. `new` and `bytewise` (block
+  reads one register per transaction, the documented exception) return the handle when the
+  bus cannot serve SCDC.
+- **`DdcErrorKind` implements `DdcError`**, for an implementation with nothing more to report.
+- The crate's scope, as its docs now say: traits and the glue between its own traits
+  (`read_block_bytewise`, `ScdcOverDdc`); no hardware or platform implementations, no
+  policy, no clocks.
 
 ## [0.6.1] - 2026-11-02
 

@@ -213,7 +213,7 @@ pub trait DdcBus {
 /// An error of a [`DdcBus`], classified.
 ///
 /// Implemented for [`Infallible`] and `()` (kind [`DdcErrorKind::Other`]), so test doubles
-/// can use either.
+/// can use either, and for [`DdcErrorKind`] itself.
 pub trait DdcError: core::fmt::Debug {
     /// What kind of failure this is.
     fn kind(&self) -> DdcErrorKind;
@@ -295,6 +295,14 @@ impl DdcError for Infallible {
 impl DdcError for () {
     fn kind(&self) -> DdcErrorKind {
         DdcErrorKind::Other
+    }
+}
+
+/// A kind is an error of its own kind, for an implementation with nothing more to report
+/// (as embedded-hal's `ErrorKind` is its own `Error`).
+impl DdcError for DdcErrorKind {
+    fn kind(&self) -> DdcErrorKind {
+        *self
     }
 }
 

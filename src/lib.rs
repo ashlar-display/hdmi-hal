@@ -1,7 +1,8 @@
 //! Hardware abstraction traits for the HDMI stack.
 //!
 //! `hdmi-hal` defines the behavioral contracts between protocol logic and hardware.
-//! It is a traits-only crate: no implementations live here.
+//! It holds traits and the glue between its own traits ([`scdc::read_block_bytewise`],
+//! [`scdc::ScdcOverDdc`]): no hardware or platform implementations, no policy, no clocks.
 
 #![no_std]
 #![forbid(unsafe_code)]
