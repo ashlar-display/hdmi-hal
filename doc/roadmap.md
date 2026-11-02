@@ -20,9 +20,24 @@ mode, so TMDS-only hardware implements only what it has:
   implementing both mode traits, entering one mode leaves the other.
 - **Clock and delay traits:** a monotonic `now()` and a delay, which plug into the
   hardware's timer, for the procedures that drive these traits.
-- **`DdcBus`:** EDID (0x50/0x30), SCDC (0x54) and HDCP (0x74) share one bus; a `DdcBus`
-  contract comes as an adapter type, not a blanket `ScdcTransport` impl (that would
-  conflict with hdmi-hal-async's `SendScdcTransport` blanket). Designed in its own pass.
+- **`ddc::DdcBus`, one trait for the DDC bus.** EDID (0x50, with the E-DDC segment pointer
+  at 0x30), DisplayID (0x52), SCDC (0x54), HDCP (0x3A, 0x3B) and DDC/CI (0x37) share one bus
+  per connector. `DdcBus` offers `write`, `write_read` and `read` on any 7-bit address, and
+  `read_segmented` for E-DDC reads of EDID and DisplayID (VESA E-DDC 1.3), which span two
+  addresses and are the one read EDID-only hardware can do. All methods take `&self`; one call
+  is one transaction, and the implementation serializes concurrent calls.
+  - **Errors** carry a kind (`DdcError::kind()`): no acknowledgement (from the address, a data
+    byte, or unknown), timeout, busy, unsupported, detached, other.
+  - **Capabilities** say what the hardware can do and never more: per-operation length limits,
+    reachable addresses, the highest E-DDC segment, whether reads are split on the wire.
+  - **`scdc::ScdcOverDdc`** implements `ScdcTransport` over a `DdcBus`, generic over any handle
+    that dereferences to the bus (`&B`, `Rc<B>`, `Arc<B>`), so several users share one bus.
+    It is a type rather than a blanket impl, which would conflict with hdmi-hal-async's
+    `SendScdcTransport` blanket.
+  - **`ScdcTransport::Error`** gets the same `DdcError` bound, implemented for `Infallible`
+    and `()`.
+  - The crate stays free of hardware and platform implementations, policy and clocks; it holds
+    traits and the glue between them (`read_block_bytewise`, the adapter).
 - **A cancellation clause** for the PHY traits' futures, as `ScdcTransport` has.
 
 Every crate that re-exports hdmi-hal's types follows with a breaking release.

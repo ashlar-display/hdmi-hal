@@ -6,6 +6,8 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+pub mod ddc;
+
 /// PHY control trait and associated types.
 pub mod phy;
 

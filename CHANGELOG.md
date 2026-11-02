@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ddc` module: `DdcBus`, one trait for a connector's whole DDC bus.** `write`,
+  `write_read` and `read` on any 7-bit address, and `read_segmented` for E-DDC reads of the
+  EDID and DisplayID structures (VESA E-DDC 1.3), which write the segment pointer at 0x30
+  and read the target with no STOP between, and are the one read EDID-only hardware can do.
+  All methods take `&self`, so several users share one bus; one call is one transaction,
+  and the implementation serializes concurrent calls. Arguments are checked before bus
+  activity: reserved addresses, segments above 7Fh and reads past a segment's 256 bytes are
+  refused; empty buffers succeed with no bus activity.
+- **`DdcError`, `DdcErrorKind`, `NoAcknowledgeSource`:** every `DdcBus` error carries a kind
+  (not acknowledged, at the address, a data byte or unknown; timeout; busy; unsupported;
+  detached; other). Implemented for `Infallible` and `()`.
+- **`DdcCapabilities`:** what an implementation can do, never more: per-operation length
+  limits, reachable addresses, E-DDC targets and the highest segment, split reads, the
+  clock-stretch timeout. Built with `const fn` constructors and setters.
+- **`EddcTarget`** and constants for the bus's addresses (`SEGMENT_POINTER`, `EDID`,
+  `DISPLAYID`, `SCDC`, `HDCP_PRIMARY`, `HDCP_SECONDARY`, `DDC_CI`), and
+  `is_usable_address`.
+
 ## [0.6.1] - 2026-11-02
 
 ### Changed
