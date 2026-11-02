@@ -126,7 +126,7 @@ pub struct LaneEqParams {
 /// during link training.
 ///
 /// How to combine the bits is the PHY's to decide, because the reference implementations
-/// disagree and the specification text is not available to this crate. The AMD display
+/// disagree and no public source settles it. The AMD display
 /// driver (`dpcs30_program_eq_setting`) treats each "only" bit as removing the other
 /// component, so both set leaves neither (not quite its `no_ffe` setting, which also
 /// changes the main cursor), and `no_ffe` overrides both. The Rockchip HDPTX PHY driver
