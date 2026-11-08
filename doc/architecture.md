@@ -3,9 +3,10 @@
 ## Role
 
 `hdmi-hal` defines the behavioral contracts between protocol logic and hardware across
-the HDMI stack. It is a traits-only crate: no implementations live here. Every trait
-in this crate expresses an I/O boundary that multiple crates in the stack need to cross
-in a compatible way.
+the HDMI stack. It holds traits, and the glue between its own traits
+(`read_block_bytewise`, `ScdcOverDdc`): no hardware, platform or clock implementations, no
+policy. Every trait in this crate expresses an I/O boundary that multiple crates in the
+stack need to cross in a compatible way.
 
 The bar for inclusion is that at least two crates must share the contract. Traits that
 are only ever used by a single library stay in that library.
@@ -17,6 +18,8 @@ are only ever used by a single library stay in that library.
 `hdmi-hal` covers:
 
 - `ScdcTransport` — raw register read/write access to the SCDC register map over DDC/I²C
+- `DdcBus` — the connector's whole DDC bus: any 7-bit target, and E-DDC reads of EDID and
+  DisplayID; with `ScdcOverDdc`, an `ScdcTransport` over it
 - `FrlPhy` — what FRL link training needs from the transmitter PHY: FRL rate, link
   training patterns, FRL output mode and equalization
 - `TmdsPhy` — what TMDS bring-up and tear-down need from the transmitter PHY: character
@@ -31,8 +34,9 @@ The following are explicitly out of scope:
 - **Protocol logic** — SCDC register semantics, typed register wrappers, and the FRL
   link training state machine belong in the crates that consume `ScdcTransport`.
 - **Implementations** — concrete platform backends (kernel I²C drivers, simulator
-  harnesses, test doubles) live in the crates that use these traits. No implementation
-  of any trait in this crate lives in this crate.
+  harnesses, test doubles) live in the crates that use these traits. The only
+  implementations here are glue between this crate's own traits: `ScdcOverDdc`, an
+  `ScdcTransport` over any `DdcBus`, and the `read_block_bytewise` helper.
 - **PHY vendor backends** — hardware-specific register sequences belong in platform
   crates that implement `FrlPhy` and `TmdsPhy`.
 - **Clocks and timers** — `Clock` and `Delay` are contracts; the platform's counter and
@@ -106,8 +110,13 @@ sequences — belong in the `culvert` crate, not here. Keeping this boundary cle
 `hdmi-hal` encodes no knowledge of the SCDC register map; it only describes how bytes
 move.
 
-The associated `Error` type is bounded by the implementing crate. A hardware backend
-exposes its own I²C error type; a simulator may use `Infallible`.
+The associated `Error` type is the implementing crate's, bounded by `DdcError` (see
+`DdcBus` below): every transport error carries a `DdcErrorKind`, so transport-generic code
+can tell a sink that does not answer from a bus that timed out, is busy or is gone. A
+hardware backend implements `DdcError::kind` for its own error type (`Other` where it
+cannot tell); a simulator may use `Infallible` or `()`, for which hdmi-hal implements it.
+Over a `DdcBus`, the transport is `ScdcOverDdc` (below); a transport that is not built on
+one, such as a kernel backend over its own SCDC helpers, implements the trait directly.
 
 **Block reads.** `read_block` reads consecutive registers into a buffer in one
 transaction, so that the transport does not split related registers, such as the status
@@ -145,6 +154,123 @@ visible in every transport's code. The helper is generic over the trait, not an
 implementation for any platform, so it is consistent with "contracts only" below.
 
 There is no block write: no consumer needs one yet.
+
+---
+
+### `DdcBus`
+
+An HDMI connector has one DDC line, an I²C bus shared by several targets: the EDID at
+0x50, with the E-DDC segment pointer at 0x30; DisplayID at 0x52; SCDC at 0x54; HDCP at
+0x3A and 0x3B; DDC/CI at 0x37. `DdcBus` is one contract for that bus, so code that talks to
+one target (SCDC through `ScdcTransport`, an EDID reader, an HDCP implementation) runs over
+any hardware that reaches it. The module `ddc` names those addresses as constants.
+
+```rust
+pub trait DdcBus {
+    type Error: DdcError;
+
+    fn capabilities(&self) -> DdcCapabilities;
+    fn write(&self, addr: u8, bytes: &[u8]) -> Result<(), Self::Error>;
+    fn write_read(&self, addr: u8, bytes: &[u8], buf: &mut [u8]) -> Result<(), Self::Error>;
+    fn read(&self, addr: u8, buf: &mut [u8]) -> Result<(), Self::Error>;
+    fn read_segmented(
+        &self,
+        target: EddcTarget,
+        segment: u8,
+        offset: u8,
+        buf: &mut [u8],
+    ) -> Result<(), Self::Error>;
+}
+
+pub trait DdcError: core::fmt::Debug {
+    fn kind(&self) -> DdcErrorKind;
+}
+```
+
+The hardware below differs widely: general I²C controllers, DDC masters driven by
+segment, address and offset registers, engines that can only read EDID, controllers shared
+with firmware. The trait's documentation holds the full contract; the decisions behind it:
+
+**Four operations, one of them E-DDC.** `write`, `write_read` and `read` reach any 7-bit
+address, as embedded-hal's operations of the same names do, so an implementation over an
+embedded-hal `I2c` maps them directly. `read_segmented` is an E-DDC read of the EDID or
+DisplayID structure (VESA E-DDC 1.3): for segment 1 and higher, the segment written to the
+pointer at 0x30, then the offset and the read at the target, with no STOP in between, since
+the display resets the pointer on STOP or NACK (2.2.5, 8.1.1). That spans two addresses, so
+it cannot be expressed as embedded-hal's one-address transaction, and it is the one read
+an EDID-only engine can do; it is its own operation so that every kind of hardware can
+offer it. For segment 0 an implementation need not write the pointer, and a display
+without one still answers (8.1.2); a missing acknowledge of the pointer value for a higher
+segment fails the read (6.4, 6.5). `EddcTarget` (`Edid`, `DisplayId`) names the target
+rather than taking an address: E-DDC defines exactly these two.
+
+**One call is one transaction; nothing spans calls.** `write`, `write_read` and `read` are
+each one combined transfer or an error, never split, as `ScdcTransport::read_block`
+promises. `read_segmented` may be split into several E-DDC transactions, each with its own
+pointer write, since EDID engines and DDC masters read in pieces; an implementation that
+splits says so in its capabilities. A split read can span a hotplug and return a block made
+of two EDIDs; the block checksum is the check. Between two calls, another user's
+transaction may run: nothing holds the bus across calls, so a procedure with a timing
+window across several transactions (HDCP's locality check) cannot rely on `DdcBus` for it;
+hardware that can guarantee it does so below, in its HDCP engine.
+
+**Shared by reference.** Every method takes `&self`, because the bus is shared by nature:
+four or five users, often in different crates and tasks. The implementation serializes
+concurrent calls, one transaction at a time, and never panics doing so; one that cannot
+serialize returns an error for the second call and says so. Users hold a handle to the bus:
+code over `DdcBus` is generic over `H: Deref<Target: DdcBus>`, so it takes `&B`,
+`&'static B`, `Rc<B>` or `Arc<B>` alike, with no `alloc` needed. There are no forwarding
+implementations (`impl DdcBus for &B`): in `hdmi-hal-async` one would conflict with the
+`Send` twin's blanket implementation, and the sync crate keeps the same shape. The
+alternative, `&mut self` with bus-sharing wrappers as embedded-hal has, was rejected: every
+user would need a wrapper whose exclusion is per call anyway, and OS backends already
+serialize.
+
+**Arguments are checked before any bus activity.** An address outside I²C's reserved
+ranges (0x00–0x07, 0x78–0x7F; `is_usable_address`), a segment above 7Fh (`MAX_SEGMENT`),
+`offset + buf.len()` past a segment's 256 bytes, and a `write` of no bytes (I²C's address
+probe, which many adapters reject) are `Unsupported`, never a panic. An empty `buf` is `Ok`
+with no bus activity; `write_read` with no bytes to write is a `read`.
+
+**Errors carry a kind.** `DdcError::kind` gives a `DdcErrorKind`: `NoAcknowledge` (from the
+address, a data byte, or unknown: `NoAcknowledgeSource`), `Timeout`, `Busy`, `Unsupported`,
+`Detached` (the bus is gone, not transient) or `Other`. `NoAcknowledge` usually means
+nothing answers at the address; `Timeout`, `Busy` and `Other` may be transient; `Detached`
+and `Unsupported` are not. `Unknown` and `Other` keep the bound cheap for hardware that
+reports one failure for everything. `DdcError` is implemented for `Infallible`, `()` and
+`DdcErrorKind` itself. An implementation adds no retries of its own, since retry counts
+are the caller's policy and would multiply with it; retries in the layer below it are
+named in its documentation. After an error the bus is usable for the next call as far as
+the hardware allows: the implementation recovers it or says what is needed.
+
+**Capabilities report what the hardware can do, and never more.** `DdcCapabilities` says,
+per operation, the longest transfer (`0`: not available), which addresses are reachable
+(a set of the 128 seven-bit addresses), which E-DDC targets and the highest segment
+`read_segmented` reads, the piece size it splits into, whether `write_read` and `read` are
+split on the wire, and the clock-stretch timeout. What an implementation cannot vouch for,
+it reports as unavailable, and the operation returns `Unsupported` before it reaches the
+bus: a report may under-state, never over-state. The type has private fields, built with
+`const fn` constructors (`general()`, everything reachable; `none()`, nothing) and `with_…`
+setters, and read through accessors, so implementations outside hdmi-hal can build it and
+fields can be added later. The report is for planning: choosing how to read the EDID,
+checking an HDCP message fits, explaining a gap in a diagnostic.
+
+**Not in it:** the sink's Read Request, an SCDC read without an offset, and a bus lock
+across calls; none of the reference implementations needs them.
+
+#### `ScdcOverDdc`
+
+`scdc::ScdcOverDdc<H>` is the `ScdcTransport` over a `DdcBus`, for any handle
+`H: Deref<Target: DdcBus>`: `read` and `read_block` are one `write_read` at 0x54 each,
+`write` one `write`, and its error is the bus's. It is glue between two of this crate's own
+traits, which is why it lives here rather than in a platform crate, and a type rather than a
+blanket implementation, which would conflict with `hdmi-hal-async`'s blanket for
+`SendScdcTransport`.
+
+Construction refuses a bus that cannot serve `ScdcTransport`: `new(bus)` returns the handle
+when 0x54 is unreachable or `write_read` cannot carry a one-byte offset and a 16-byte read
+(`read_block`'s minimum); `bytewise(bus)` needs only one-byte reads, and reads blocks one
+register per transaction, `read_block`'s documented exception.
 
 ---
 
@@ -497,9 +623,10 @@ simulated register array, without requiring real hardware or a kernel I²C drive
 
 ## Design Principles
 
-- **Contracts only.** No implementation of any trait lives in this crate. The moment an
-  implementation appears here, it becomes a platform assumption baked into a foundational
-  dependency.
+- **Contracts only.** No hardware, platform or clock implementation lives in this crate,
+  and no policy. The moment one appears here, it becomes a platform assumption baked into a
+  foundational dependency. The exception is glue between this crate's own traits
+  (`ScdcOverDdc`, `read_block_bytewise`), which assumes nothing about a platform.
 - **Accuracy and completeness.** Trait surfaces must not omit operations the standard
   defines. A method left out because it seems unlikely to be needed now is a missing
   contract that forces a breaking change or a fork later. What callers choose to use is
