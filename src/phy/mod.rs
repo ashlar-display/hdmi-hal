@@ -190,8 +190,9 @@ impl EqParams {
 /// training patterns, FRL output mode, and each lane's TxFFE level (FRL's transmitter
 /// equalization, a combination of pre-shoot and de-emphasis) through
 /// [`adjust_equalization`](Self::adjust_equalization). TMDS is [`TmdsPhy`]'s, the source's
-/// scrambler included. Further PHY configuration (lane mapping, spread-spectrum clocking and
-/// power states) is not covered yet; it is planned for when the mode-setting layer needs it.
+/// scrambler included, and power is [`PhyPower`]'s. Further PHY configuration (lane mapping,
+/// spread-spectrum clocking and power states beyond off and on) is not covered yet; it is
+/// planned for when the mode-setting layer needs it.
 /// Vendor-specific register sequences are an implementation detail of each backend.
 ///
 /// On a PHY that also implements [`TmdsPhy`], entering one mode leaves the other:
@@ -358,7 +359,7 @@ impl TmdsPhyCapabilities {
 ///
 /// Not covered: electrical settings (swing, pre-emphasis, lane mapping), which are the
 /// implementation's; the video pipeline beyond what [`TmdsVideo`] gives the PHY; hotplug and
-/// RX sense; and power.
+/// RX sense; and power, which is [`PhyPower`]'s.
 ///
 /// On a PHY that also implements [`FrlPhy`], entering one mode leaves the other:
 /// [`configure`](Self::configure) leaves FRL.
@@ -390,11 +391,41 @@ pub trait TmdsPhy {
     fn start_output(&mut self) -> Result<(), Self::Error>;
 
     /// Stop whatever the PHY transmits: TMDS clock and data or, on a PHY still in FRL, FRL
-    /// transmission. Keeps the PHY powered and configured.
+    /// transmission. Keeps the PHY powered and configured, unlike
+    /// [`PhyPower::power_off`].
     ///
     /// Callable in any state, powered off included; stopping a stopped output is not an
     /// error.
     fn stop_output(&mut self) -> Result<(), Self::Error>;
+}
+
+/// Power control of a transmitter PHY, shared by [`TmdsPhy`] and [`FrlPhy`].
+///
+/// A trait of its own, not a supertrait of the mode traits: link training and TMDS
+/// bring-up bound on a mode trait alone and never change the power, and a PHY that is
+/// always on implements the mode traits only. A caller that powers the PHY, on unplug and
+/// before a bring-up, bounds on `PhyPower` as well. One PHY implementing several of these
+/// traits may use one error type for all of them.
+///
+/// For a PHY implementing both mode traits, entering one mode leaves the other:
+/// [`TmdsPhy::configure`] leaves FRL, and [`FrlPhy::set_frl_rate`] with a rate leaves TMDS;
+/// `set_frl_rate(NotSupported)` turns FRL off and enters nothing.
+pub trait PhyPower {
+    /// Error type returned by power operations.
+    type Error: core::fmt::Debug;
+
+    /// Power the PHY on, leaving the output stopped and no mode entered; the caller then
+    /// enters one, with [`TmdsPhy::configure`] or [`FrlPhy::set_frl_rate`].
+    ///
+    /// Powering on a PHY that is on is not an error, and does not change a mode already
+    /// entered.
+    fn power_on(&mut self) -> Result<(), Self::Error>;
+
+    /// Power the PHY off: stop any output and leave no mode. Afterwards the PHY holds no
+    /// TMDS configuration and no FRL rate, so a bring-up must configure it again.
+    ///
+    /// Callable in any state; powering off a PHY that is off is not an error.
+    fn power_off(&mut self) -> Result<(), Self::Error>;
 }
 
 #[cfg(test)]
@@ -731,5 +762,81 @@ mod tests {
         phy.stop_output().unwrap();
         assert_eq!(phy.scrambling, Some(false));
         assert!(!phy.output);
+    }
+
+    /// A PHY with power, implementing both `TmdsPhy` and `PhyPower` with one error type, as
+    /// the trait's documentation allows.
+    struct PoweredPhy {
+        tmds: MockTmdsPhy,
+        powered: bool,
+    }
+
+    impl PhyPower for PoweredPhy {
+        type Error = core::convert::Infallible;
+
+        fn power_on(&mut self) -> Result<(), Self::Error> {
+            self.powered = true;
+            Ok(())
+        }
+
+        fn power_off(&mut self) -> Result<(), Self::Error> {
+            self.powered = false;
+            self.tmds.output = false;
+            self.tmds.config = None;
+            Ok(())
+        }
+    }
+
+    impl TmdsPhy for PoweredPhy {
+        type Error = <Self as PhyPower>::Error;
+
+        fn capabilities(&self) -> TmdsPhyCapabilities {
+            self.tmds.capabilities()
+        }
+
+        fn configure(&mut self, config: TmdsPhyConfig) -> Result<(), Self::Error> {
+            self.tmds.configure(config)
+        }
+
+        fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error> {
+            self.tmds.set_scrambling(enabled)
+        }
+
+        fn start_output(&mut self) -> Result<(), Self::Error> {
+            self.tmds.start_output()
+        }
+
+        fn stop_output(&mut self) -> Result<(), Self::Error> {
+            self.tmds.stop_output()
+        }
+    }
+
+    /// A caller that powers the PHY bounds on both traits.
+    fn power_cycle<P: PhyPower + TmdsPhy>(phy: &mut P, config: TmdsPhyConfig) {
+        phy.power_off().unwrap();
+        phy.power_off().unwrap();
+        phy.power_on().unwrap();
+        phy.power_on().unwrap();
+        phy.configure(config).unwrap();
+        phy.start_output().unwrap();
+    }
+
+    #[test]
+    fn phy_power_composes_with_a_mode_trait() {
+        let mut phy = PoweredPhy {
+            tmds: MockTmdsPhy {
+                config: None,
+                scrambling: None,
+                output: true,
+            },
+            powered: true,
+        };
+        let config = TmdsPhyConfig::new(594_000, TmdsClockRatio::Div40, VIDEO_4K60);
+        power_cycle(&mut phy, config);
+        assert!(phy.powered && phy.tmds.output);
+        assert_eq!(phy.tmds.config, Some(config));
+        phy.power_off().unwrap();
+        assert!(!phy.powered && !phy.tmds.output);
+        assert_eq!(phy.tmds.config, None);
     }
 }
