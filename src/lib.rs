@@ -9,7 +9,7 @@
 
 pub mod ddc;
 
-/// PHY control trait and associated types.
+/// PHY control traits and associated types.
 pub mod phy;
 
 /// SCDC register transport trait.

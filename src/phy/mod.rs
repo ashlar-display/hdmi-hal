@@ -221,6 +221,177 @@ pub trait HdmiPhy {
     fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
 }
 
+/// The TMDS bit clock ratio, as the sink's `TMDS_Bit_Clock_Ratio` bit selects it.
+///
+/// Deliberately exhaustive: it is one bit on the wire (`TMDS_Bit_Clock_Ratio`), with no room
+/// for a third value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TmdsClockRatio {
+    /// 1/10.
+    Div10,
+    /// 1/40.
+    Div40,
+}
+
+/// The video a TMDS link carries, as far as a PHY may need it.
+///
+/// Some PHYs are set up from the pixel clock and colour depth rather than from the character
+/// rate, and one character rate comes from several pixel clocks (8, 10 and 12 bits per
+/// component, 4:2:0). A PHY keyed by the character rate ignores this.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TmdsVideo {
+    /// The pixel clock, in kHz.
+    pub pixel_clock_khz: u32,
+    /// Bits per colour component.
+    pub color_depth: display_types::ColorBitDepth,
+    /// The colour format. YCbCr 4:2:0 halves the character rate.
+    pub color_format: display_types::ColorFormat,
+    /// Pixel repetition: 0 for none, `n` for each pixel sent `n + 1` times.
+    pub pixel_repetition: u8,
+}
+
+impl TmdsVideo {
+    /// Constructs `TmdsVideo` with no pixel repetition.
+    pub const fn new(
+        pixel_clock_khz: u32,
+        color_depth: display_types::ColorBitDepth,
+        color_format: display_types::ColorFormat,
+    ) -> Self {
+        Self {
+            pixel_clock_khz,
+            color_depth,
+            color_format,
+            pixel_repetition: 0,
+        }
+    }
+
+    /// Sets the pixel repetition (0: none; `n`: each pixel sent `n + 1` times).
+    pub const fn with_pixel_repetition(mut self, pixel_repetition: u8) -> Self {
+        self.pixel_repetition = pixel_repetition;
+        self
+    }
+}
+
+/// What [`TmdsPhy::configure`] sets.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TmdsPhyConfig {
+    /// The TMDS character rate, in kHz, rounded up and never truncated.
+    pub character_rate_khz: u32,
+    /// The TMDS bit clock ratio.
+    pub clock_ratio: TmdsClockRatio,
+    /// The video the link carries.
+    pub video: TmdsVideo,
+}
+
+impl TmdsPhyConfig {
+    /// Constructs `TmdsPhyConfig`.
+    pub const fn new(
+        character_rate_khz: u32,
+        clock_ratio: TmdsClockRatio,
+        video: TmdsVideo,
+    ) -> Self {
+        Self {
+            character_rate_khz,
+            clock_ratio,
+            video,
+        }
+    }
+}
+
+/// What a TMDS PHY can do, as [`TmdsPhy::capabilities`] reports it.
+///
+/// Hardware that cannot do something reports it here, never more than it can: [`new`]
+/// starts with no scrambler.
+///
+/// [`new`]: Self::new
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TmdsPhyCapabilities {
+    /// The source's own highest TMDS character rate, in kHz.
+    pub max_character_rate_khz: u32,
+    /// Whether the PHY has a TMDS scrambler.
+    ///
+    /// A field of its own, not derived from the ceiling: a link at exactly 340 000 kHz may
+    /// be scrambled, so a PHY whose ceiling is 340 Mcsc and which has no scrambler says so
+    /// here.
+    pub scrambling: bool,
+    /// Whether the PHY can scramble at or below 340 Mcsc. Counts only with
+    /// [`scrambling`](Self::scrambling).
+    pub low_rate_scrambling: bool,
+}
+
+impl TmdsPhyCapabilities {
+    /// Constructs `TmdsPhyCapabilities` with the given ceiling and no scrambler.
+    pub const fn new(max_character_rate_khz: u32) -> Self {
+        Self {
+            max_character_rate_khz,
+            scrambling: false,
+            low_rate_scrambling: false,
+        }
+    }
+
+    /// Sets whether the PHY has a TMDS scrambler.
+    pub const fn with_scrambling(mut self, scrambling: bool) -> Self {
+        self.scrambling = scrambling;
+        self
+    }
+
+    /// Sets whether the PHY can scramble at or below 340 Mcsc.
+    pub const fn with_low_rate_scrambling(mut self, low_rate_scrambling: bool) -> Self {
+        self.low_rate_scrambling = low_rate_scrambling;
+        self
+    }
+}
+
+/// TMDS control of an HDMI transmitter PHY.
+///
+/// What TMDS bring-up and tear-down need from the transmitter, and nothing more: the
+/// character rate and clock ratio, the source's scrambler, and starting and stopping the
+/// output. A trait of its own, so TMDS-only hardware implements nothing of FRL.
+///
+/// Not covered: electrical settings (swing, pre-emphasis, lane mapping), which are the
+/// implementation's; the video pipeline beyond what [`TmdsVideo`] gives the PHY; hotplug and
+/// RX sense; and power.
+///
+/// On a PHY that also implements [`HdmiPhy`], entering one mode leaves the other:
+/// [`configure`](Self::configure) leaves FRL.
+pub trait TmdsPhy {
+    /// Error type returned by PHY operations.
+    type Error: core::fmt::Debug;
+
+    /// What the PHY can do. A plain report of what the implementation already knows.
+    fn capabilities(&self) -> TmdsPhyCapabilities;
+
+    /// Set the character rate and clock ratio, with the output stopped, and leave it
+    /// stopped. Enters TMDS mode, leaving FRL on a PHY that also does FRL.
+    ///
+    /// An implementation that cannot reconfigure while transmitting may return an error
+    /// when called with the output running.
+    fn configure(&mut self, config: TmdsPhyConfig) -> Result<(), Self::Error>;
+
+    /// Turn the source's TMDS scrambler on or off, with the output running or stopped.
+    ///
+    /// `set_scrambling(false)` succeeds on a PHY without a scrambler
+    /// ([`TmdsPhyCapabilities::scrambling`] false), since plain links call it.
+    fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
+
+    /// Start TMDS output at the configured rate.
+    ///
+    /// Returns once the PHY transmits, after whatever its hardware needs to get there (a PLL
+    /// lock, a reset sequence): callers time from its return, so returning means on the
+    /// wire.
+    fn start_output(&mut self) -> Result<(), Self::Error>;
+
+    /// Stop whatever the PHY transmits: TMDS clock and data or, on a PHY still in FRL, FRL
+    /// transmission. Keeps the PHY powered and configured.
+    ///
+    /// Callable in any state, powered off included; stopping a stopped output is not an
+    /// error.
+    fn stop_output(&mut self) -> Result<(), Self::Error>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,5 +661,99 @@ mod tests {
         phy.adjust_equalization(EqParams::new()).unwrap();
         phy.adjust_equalization(EqParams::new()).unwrap();
         assert_eq!(phy.eq_calls, 2);
+    }
+
+    /// A minimal `TmdsPhy` that records what it is given, as `MockPhy` does for `HdmiPhy`.
+    /// Behaviour is tested where it lives: in spiritlevel, against its simulated PHY.
+    struct MockTmdsPhy {
+        config: Option<TmdsPhyConfig>,
+        scrambling: Option<bool>,
+        output: bool,
+    }
+
+    impl TmdsPhy for MockTmdsPhy {
+        type Error = core::convert::Infallible;
+
+        fn capabilities(&self) -> TmdsPhyCapabilities {
+            TmdsPhyCapabilities::new(600_000)
+                .with_scrambling(true)
+                .with_low_rate_scrambling(true)
+        }
+
+        fn configure(&mut self, config: TmdsPhyConfig) -> Result<(), Self::Error> {
+            self.config = Some(config);
+            Ok(())
+        }
+
+        fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error> {
+            self.scrambling = Some(enabled);
+            Ok(())
+        }
+
+        fn start_output(&mut self) -> Result<(), Self::Error> {
+            self.output = true;
+            Ok(())
+        }
+
+        fn stop_output(&mut self) -> Result<(), Self::Error> {
+            self.output = false;
+            Ok(())
+        }
+    }
+
+    const VIDEO_4K60: TmdsVideo = TmdsVideo::new(
+        594_000,
+        display_types::ColorBitDepth::Depth8,
+        display_types::ColorFormat::Rgb444,
+    );
+
+    #[test]
+    fn tmds_video_new_has_no_pixel_repetition() {
+        assert_eq!(VIDEO_4K60.pixel_clock_khz, 594_000);
+        assert_eq!(VIDEO_4K60.color_depth, display_types::ColorBitDepth::Depth8);
+        assert_eq!(VIDEO_4K60.color_format, display_types::ColorFormat::Rgb444);
+        assert_eq!(VIDEO_4K60.pixel_repetition, 0);
+        assert_eq!(VIDEO_4K60.with_pixel_repetition(1).pixel_repetition, 1);
+    }
+
+    #[test]
+    fn tmds_phy_config_new_takes_its_fields_in_order() {
+        const CONFIG: TmdsPhyConfig =
+            TmdsPhyConfig::new(594_000, TmdsClockRatio::Div40, VIDEO_4K60);
+        assert_eq!(CONFIG.character_rate_khz, 594_000);
+        assert_eq!(CONFIG.clock_ratio, TmdsClockRatio::Div40);
+        assert_eq!(CONFIG.video, VIDEO_4K60);
+    }
+
+    #[test]
+    fn tmds_phy_capabilities_new_reports_no_scrambler() {
+        let caps = TmdsPhyCapabilities::new(340_000);
+        assert_eq!(caps.max_character_rate_khz, 340_000);
+        assert!(!caps.scrambling);
+        assert!(!caps.low_rate_scrambling);
+        let caps = caps.with_scrambling(true).with_low_rate_scrambling(true);
+        assert!(caps.scrambling && caps.low_rate_scrambling);
+    }
+
+    #[test]
+    fn tmds_phy_records_configure_scrambling_and_output() {
+        let mut phy = MockTmdsPhy {
+            config: None,
+            scrambling: None,
+            output: false,
+        };
+        assert!(phy.capabilities().scrambling);
+        let config = TmdsPhyConfig::new(594_000, TmdsClockRatio::Div40, VIDEO_4K60);
+        phy.stop_output().unwrap();
+        phy.configure(config).unwrap();
+        phy.set_scrambling(true).unwrap();
+        phy.start_output().unwrap();
+        assert_eq!(phy.config, Some(config));
+        assert_eq!(phy.scrambling, Some(true));
+        assert!(phy.output);
+        phy.set_scrambling(false).unwrap();
+        phy.stop_output().unwrap();
+        assert_eq!(phy.scrambling, Some(false));
+        assert!(!phy.output);
     }
 }

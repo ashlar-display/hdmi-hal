@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`phy::TmdsPhy`, TMDS control of the transmitter**, beside `HdmiPhy`, so TMDS-only
+  hardware implements nothing of FRL: `capabilities`, `configure` (character rate, clock
+  ratio and the video, leaving the output stopped), `set_scrambling`, `start_output` (returns
+  once on the wire) and `stop_output` (callable in any state). With `TmdsClockRatio`,
+  `TmdsPhyConfig`, `TmdsVideo` (pixel clock, colour depth and format, pixel repetition) and
+  `TmdsPhyCapabilities` (the character-rate ceiling and whether the PHY can scramble, at all
+  and at or below 340 Mcsc), built with `const fn` constructors and setters.
 - **`ddc` module: `DdcBus`, one trait for a connector's whole DDC bus.** `write`,
   `write_read` and `read` on any 7-bit address, and `read_segmented` for E-DDC reads of the
   EDID and DisplayID structures (VESA E-DDC 1.3), which write the segment pointer at 0x30
