@@ -98,7 +98,7 @@ the same split as `embedded-hal` / `embedded-hal-async`.
 - **Implementations** — concrete platform backends (kernel I²C drivers, simulator
   harnesses, test doubles) live in the crates that use these traits.
 - **PHY vendor backends** — hardware-specific register sequences belong in platform
-  crates that implement `HdmiPhy`.
+  crates that implement `FrlPhy` and `TmdsPhy`.
 - **CEC or eARC protocol logic** — only the wire-access primitive will belong here;
   protocol state machines are in their own crates.
 

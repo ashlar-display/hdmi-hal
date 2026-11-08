@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
+- **`HdmiPhy` is renamed `FrlPhy`**, with no alias: implementations and bounds change the
+  name. `set_frl_rate(HdmiForumFrl::NotSupported)` now means "FRL off" and enters no other
+  mode, no longer "switch to TMDS"; entering TMDS is `TmdsPhy::configure`'s. On a PHY
+  implementing both, entering one mode leaves the other.
+- **`set_scrambling` moves from `FrlPhy` to `TmdsPhy`**, with the same meaning: the
+  scrambler it controls is the source's TMDS scrambler. An `HdmiPhy` implementation's
+  `set_scrambling` becomes part of its `TmdsPhy` implementation.
 - **`ScdcTransport::Error` is bounded by `DdcError`.** Every transport error now carries a
   `DdcErrorKind`, so generic code can tell a sink that does not answer from a bus that timed
   out, was busy or is gone. `DdcError` is implemented for `Infallible`, `()` and
@@ -18,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`phy::TmdsPhy`, TMDS control of the transmitter**, beside `HdmiPhy`, so TMDS-only
+- **`phy::TmdsPhy`, TMDS control of the transmitter**, beside `FrlPhy`, so TMDS-only
   hardware implements nothing of FRL: `capabilities`, `configure` (character rate, clock
   ratio and the video, leaving the output stopped), `set_scrambling`, `start_output` (returns
   once on the wire) and `stop_output` (callable in any state). With `TmdsClockRatio`,

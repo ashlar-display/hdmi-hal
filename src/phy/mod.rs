@@ -2,7 +2,7 @@ use display_types::cea861::hdmi_forum::HdmiForumFrl;
 
 /// A link training pattern to be driven on the physical lanes.
 ///
-/// Produced by the link training state machine and passed to [`HdmiPhy::send_ltp`].
+/// Produced by the link training state machine and passed to [`FrlPhy::send_ltp`].
 /// The discriminants are the pattern values a sink requests in the SCDC Status_Flags
 /// LTP fields. Request values that are not patterns (0 for no pattern, and the TxFFE
 /// and rate change requests) are handled by the link training layer and have no variant.
@@ -35,7 +35,7 @@ impl LtpPattern {
     }
 }
 
-/// The link training pattern for each lane, passed to [`HdmiPhy::send_ltp`].
+/// The link training pattern for each lane, passed to [`FrlPhy::send_ltp`].
 ///
 /// Always the full per-lane set: the PHY applies it as given, and the link training
 /// layer tracks which pattern each lane carries. `None` means no training pattern on
@@ -55,7 +55,7 @@ pub struct LanePatterns {
 
 /// What the transmitter sends on the FRL lanes once training patterns are stopped.
 ///
-/// Passed to [`HdmiPhy::set_frl_output`].
+/// Passed to [`FrlPhy::set_frl_output`].
 ///
 /// Deliberately exhaustive, unlike [`LtpPattern`]. The two variants are the two states of
 /// an FRL link, training and carrying content, not a list that grows with each HDMI
@@ -184,20 +184,28 @@ impl EqParams {
     }
 }
 
-/// Link-level control of an HDMI 2.1 transmitter PHY.
+/// FRL control of an HDMI 2.1 transmitter PHY.
 ///
 /// Covers what FRL link training needs from the transmitter: FRL rate selection, link
-/// training patterns, FRL output mode, scrambling, and each lane's TxFFE level (FRL's
-/// transmitter equalization, a combination of pre-shoot and de-emphasis) through
-/// [`adjust_equalization`](Self::adjust_equalization). Further PHY configuration (lane
-/// mapping, TMDS pre-emphasis and swing, spread-spectrum clocking and power states) is not
-/// covered yet; it is planned for when the mode-setting layer needs it. Vendor-specific
-/// register sequences are an implementation detail of each backend.
-pub trait HdmiPhy {
+/// training patterns, FRL output mode, and each lane's TxFFE level (FRL's transmitter
+/// equalization, a combination of pre-shoot and de-emphasis) through
+/// [`adjust_equalization`](Self::adjust_equalization). TMDS is [`TmdsPhy`]'s, the source's
+/// scrambler included. Further PHY configuration (lane mapping, spread-spectrum clocking and
+/// power states) is not covered yet; it is planned for when the mode-setting layer needs it.
+/// Vendor-specific register sequences are an implementation detail of each backend.
+///
+/// On a PHY that also implements [`TmdsPhy`], entering one mode leaves the other:
+/// [`set_frl_rate`](Self::set_frl_rate) with a rate leaves TMDS.
+pub trait FrlPhy {
     /// Error type returned by PHY operations.
     type Error;
 
-    /// Select the FRL rate (or TMDS). Triggers the required lane reconfiguration sequence.
+    /// Select the FRL rate, or turn FRL off. Triggers the required lane reconfiguration
+    /// sequence.
+    ///
+    /// A rate enters FRL, leaving TMDS on a PHY that also does TMDS.
+    /// [`HdmiForumFrl::NotSupported`] turns FRL off and enters no other mode: entering TMDS
+    /// is [`TmdsPhy::configure`]'s.
     ///
     /// Returns once the PHY transmits at `rate`, after any bring-up its hardware needs to
     /// get there — the Xilinx HDMI 2.1 transmitter, for example, holds a Nyquist clock
@@ -216,9 +224,6 @@ pub trait HdmiPhy {
     /// [`TxFfeRestrictions`] in `params`. Each call carries the complete settings, so the
     /// restrictions in force are always the last ones given.
     fn adjust_equalization(&mut self, params: EqParams) -> Result<(), Self::Error>;
-
-    /// Enable or disable scrambling on the PHY.
-    fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
 }
 
 /// The TMDS bit clock ratio, as the sink's `TMDS_Bit_Clock_Ratio` bit selects it.
@@ -355,7 +360,7 @@ impl TmdsPhyCapabilities {
 /// implementation's; the video pipeline beyond what [`TmdsVideo`] gives the PHY; hotplug and
 /// RX sense; and power.
 ///
-/// On a PHY that also implements [`HdmiPhy`], entering one mode leaves the other:
+/// On a PHY that also implements [`FrlPhy`], entering one mode leaves the other:
 /// [`configure`](Self::configure) leaves FRL.
 pub trait TmdsPhy {
     /// Error type returned by PHY operations.
@@ -397,13 +402,12 @@ mod tests {
     use super::*;
     use display_types::cea861::hdmi_forum::HdmiForumFrl;
 
-    /// A minimal `HdmiPhy` that records what it is given. The tests that drive it method by
+    /// A minimal `FrlPhy` that records what it is given. The tests that drive it method by
     /// method check little beyond recording — they show that the trait can be implemented
     /// and used for each method, and they keep this implementation covered. Behaviour is
     /// tested where it lives: in plumbob, against its simulated PHY.
     struct MockPhy {
         frl_rate: Option<HdmiForumFrl>,
-        scrambling: Option<bool>,
         eq_calls: u32,
         last_eq: Option<EqParams>,
         frl_output: Option<FrlOutput>,
@@ -414,7 +418,6 @@ mod tests {
         fn new() -> Self {
             Self {
                 frl_rate: None,
-                scrambling: None,
                 eq_calls: 0,
                 last_eq: None,
                 frl_output: None,
@@ -423,7 +426,7 @@ mod tests {
         }
     }
 
-    impl HdmiPhy for MockPhy {
+    impl FrlPhy for MockPhy {
         type Error = core::convert::Infallible;
 
         fn send_ltp(&mut self, patterns: LanePatterns) -> Result<(), Self::Error> {
@@ -444,11 +447,6 @@ mod tests {
         fn adjust_equalization(&mut self, params: EqParams) -> Result<(), Self::Error> {
             self.eq_calls += 1;
             self.last_eq = Some(params);
-            Ok(())
-        }
-
-        fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error> {
-            self.scrambling = Some(enabled);
             Ok(())
         }
     }
@@ -536,28 +534,6 @@ mod tests {
         phy.set_frl_rate(HdmiForumFrl::Rate3Gbps3Lanes).unwrap();
         phy.set_frl_rate(HdmiForumFrl::Rate12Gbps4Lanes).unwrap();
         assert_eq!(phy.frl_rate, Some(HdmiForumFrl::Rate12Gbps4Lanes));
-    }
-
-    #[test]
-    fn set_scrambling_enable() {
-        let mut phy = MockPhy::new();
-        phy.set_scrambling(true).unwrap();
-        assert_eq!(phy.scrambling, Some(true));
-    }
-
-    #[test]
-    fn set_scrambling_disable() {
-        let mut phy = MockPhy::new();
-        phy.set_scrambling(false).unwrap();
-        assert_eq!(phy.scrambling, Some(false));
-    }
-
-    #[test]
-    fn set_scrambling_can_be_toggled() {
-        let mut phy = MockPhy::new();
-        phy.set_scrambling(true).unwrap();
-        phy.set_scrambling(false).unwrap();
-        assert_eq!(phy.scrambling, Some(false));
     }
 
     #[test]
@@ -663,7 +639,7 @@ mod tests {
         assert_eq!(phy.eq_calls, 2);
     }
 
-    /// A minimal `TmdsPhy` that records what it is given, as `MockPhy` does for `HdmiPhy`.
+    /// A minimal `TmdsPhy` that records what it is given, as `MockPhy` does for `FrlPhy`.
     /// Behaviour is tested where it lives: in spiritlevel, against its simulated PHY.
     struct MockTmdsPhy {
         config: Option<TmdsPhyConfig>,

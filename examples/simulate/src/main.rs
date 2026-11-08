@@ -1,6 +1,6 @@
 //! Simulated backend example for `hdmi-hal`.
 //!
-//! Demonstrates the implementation pattern for [`ScdcTransport`] and [`HdmiPhy`]:
+//! Demonstrates the implementation pattern for [`ScdcTransport`] and [`FrlPhy`]:
 //! a concrete backend backed by an in-memory register array, and consumer functions
 //! generic over the trait — the signature pattern all downstream crates will follow.
 //!
@@ -8,7 +8,7 @@
 
 use core::convert::Infallible;
 use display_types::cea861::hdmi_forum::HdmiForumFrl;
-use hdmi_hal::phy::{EqParams, FrlOutput, HdmiPhy, LanePatterns, LtpPattern, TxFfeLevel};
+use hdmi_hal::phy::{EqParams, FrlOutput, FrlPhy, LanePatterns, LtpPattern, TxFfeLevel};
 use hdmi_hal::scdc::ScdcTransport;
 
 // --- Simulated backends ----------------------------------------------------------
@@ -52,7 +52,7 @@ impl ScdcTransport for SimulatedScdc {
 
 struct SimulatedPhy;
 
-impl HdmiPhy for SimulatedPhy {
+impl FrlPhy for SimulatedPhy {
     type Error = Infallible;
 
     fn set_frl_rate(&mut self, rate: HdmiForumFrl) -> Result<(), Infallible> {
@@ -72,11 +72,6 @@ impl HdmiPhy for SimulatedPhy {
 
     fn adjust_equalization(&mut self, params: EqParams) -> Result<(), Infallible> {
         println!("PHY: adjust_equalization({params:?})");
-        Ok(())
-    }
-
-    fn set_scrambling(&mut self, enabled: bool) -> Result<(), Infallible> {
-        println!("PHY: set_scrambling({enabled})");
         Ok(())
     }
 }
@@ -101,7 +96,7 @@ where
 
 fn exercise_phy<P>(phy: &mut P)
 where
-    P: HdmiPhy,
+    P: FrlPhy,
     P::Error: core::fmt::Debug,
 {
     phy.set_frl_rate(HdmiForumFrl::Rate6Gbps4Lanes).unwrap();
@@ -117,7 +112,6 @@ where
     phy.adjust_equalization(eq).unwrap();
     phy.send_ltp(LanePatterns::default()).unwrap();
     phy.set_frl_output(FrlOutput::GapOnly).unwrap();
-    phy.set_scrambling(true).unwrap();
     phy.set_frl_output(FrlOutput::Active).unwrap();
 }
 
