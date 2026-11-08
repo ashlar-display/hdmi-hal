@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configures again), both callable in any state. A trait of its own, not a supertrait of the
   mode traits, so a PHY that is always on implements only those, and link training and TMDS
   bring-up never need it.
+- **`time` module: `Timestamp`, `Clock` and `Delay`**, for procedures that wait and keep
+  deadlines without a platform `Instant`. `Timestamp` is microseconds from an arbitrary
+  monotonic epoch (`from_micros`, `as_micros`, `checked_duration_since`,
+  `saturating_duration_since`, `checked_add`, which rounds a duration up to the
+  microsecond; `const fn`). `Clock::now` takes `&self` and is neither fallible nor `async`;
+  `Delay::delay` waits at least the duration it is given. The module docs show a `Delay`
+  over embedded-hal's `DelayNs`; hdmi-hal itself does not depend on embedded-hal.
 - **`ddc` module: `DdcBus`, one trait for a connector's whole DDC bus.** `write`,
   `write_read` and `read` on any 7-bit address, and `read_segmented` for E-DDC reads of the
   EDID and DisplayID structures (VESA E-DDC 1.3), which write the segment pointer at 0x30

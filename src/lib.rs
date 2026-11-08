@@ -2,7 +2,7 @@
 //!
 //! `hdmi-hal` defines the behavioral contracts between protocol logic and hardware.
 //! It holds traits and the glue between its own traits ([`scdc::read_block_bytewise`],
-//! [`scdc::ScdcOverDdc`]): no hardware or platform implementations, no policy, no clocks.
+//! [`scdc::ScdcOverDdc`]): no hardware, platform or clock implementations, no policy.
 
 #![no_std]
 #![forbid(unsafe_code)]
@@ -14,6 +14,8 @@ pub mod phy;
 
 /// SCDC register transport trait.
 pub mod scdc;
+
+pub mod time;
 
 /// The FRL rate, as `phy::FrlPhy::set_frl_rate` takes it; re-exported from `display-types` so
 /// that implementations name the same type hdmi-hal does.
