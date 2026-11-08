@@ -17,8 +17,13 @@ are only ever used by a single library stay in that library.
 `hdmi-hal` covers:
 
 - `ScdcTransport` — raw register read/write access to the SCDC register map over DDC/I²C
-- `HdmiPhy` — transmitter PHY control: FRL rate, link training patterns, FRL output
-  mode, scrambling and equalization
+- `FrlPhy` — what FRL link training needs from the transmitter PHY: FRL rate, link
+  training patterns, FRL output mode and equalization
+- `TmdsPhy` — what TMDS bring-up and tear-down need from the transmitter PHY: character
+  rate and clock ratio, the source's scrambler, starting and stopping the output
+- `PhyPower` — powering the PHY off and on, shared by both mode traits
+- `Clock` and `Delay` — monotonic time and waiting, for the procedures that drive these
+  traits, with the `Timestamp` the clock reads
 - CEC line access trait — when CEC is implemented
 
 The following are explicitly out of scope:
@@ -29,7 +34,9 @@ The following are explicitly out of scope:
   harnesses, test doubles) live in the crates that use these traits. No implementation
   of any trait in this crate lives in this crate.
 - **PHY vendor backends** — hardware-specific register sequences belong in platform
-  crates that implement `HdmiPhy`.
+  crates that implement `FrlPhy` and `TmdsPhy`.
+- **Clocks and timers** — `Clock` and `Delay` are contracts; the platform's counter and
+  timer implement them, outside this crate.
 - **CEC or eARC protocol logic** — only the wire-access primitive belongs here; the
   protocol state machines are in their own crates.
 
@@ -38,11 +45,13 @@ The following are explicitly out of scope:
 ## Dependency Position
 
 `hdmi-hal` depends on `display-types` for shared HDMI vocabulary types (`HdmiForumFrl`,
-`FrlRate`). It does not depend on `piaf`, `concordance`, or any other stack crate.
+`FrlRate`, and `ColorBitDepth` and `ColorFormat` in `TmdsVideo`). It does not depend on
+`piaf`, `concordance`, or any other stack crate.
 
 ```
 display-types   ←   hdmi-hal        ←   culvert
                                     ←   plumbob
+                                    ←   spiritlevel (its procedures, planned)
                                     ←   (CEC)
                                     ←   platform backends (sync)
 
@@ -56,8 +65,8 @@ dependency; `display-types` defines vocabulary, `hdmi-hal` defines contracts.
 
 `hdmi-hal-async` is a companion crate that mirrors each trait in `hdmi-hal` with
 `async fn` methods and identical signatures otherwise. It depends on `hdmi-hal` to
-reuse shared data types (`EqParams` and any future structs) rather than duplicating
-them. Implementors target one or both crates depending on their executor environment;
+reuse shared data types (`EqParams`, `TmdsPhyConfig`, `Timestamp` and the others)
+rather than duplicating them. Implementors target one or both crates depending on their executor environment;
 consumers of both sync and async backends accept the relevant trait bound.
 
 ---
@@ -139,18 +148,29 @@ There is no block write: no consumer needs one yet.
 
 ---
 
-### `HdmiPhy`
+### PHY traits by link mode
+
+The PHY contract is split by link mode, so hardware implements only what it has: `FrlPhy`
+for FRL, `TmdsPhy` for TMDS, and `PhyPower` for power, shared by both. A TMDS-only PHY
+implements nothing of FRL; a PHY that is always on implements no power trait. On a PHY
+implementing both mode traits, **entering one mode leaves the other**: `TmdsPhy::configure`
+leaves FRL, `FrlPhy::set_frl_rate` with a rate leaves TMDS, and
+`set_frl_rate(HdmiForumFrl::NotSupported)` turns FRL off and enters nothing. The rule is
+stated in both mode traits' documentation and in `PhyPower`'s.
+
+### `FrlPhy`
 
 Covers what FRL link training needs from an HDMI 2.1 transmitter PHY: FRL rate
-selection, link training patterns, FRL output mode, scrambling, and each lane's TxFFE
-level (FRL's transmitter equalization, a combination of pre-shoot and de-emphasis). Further
-PHY configuration is not covered yet; see "Not covered yet" below.
+selection, link training patterns, FRL output mode, and each lane's TxFFE level (FRL's
+transmitter equalization, a combination of pre-shoot and de-emphasis). Further PHY
+configuration is not covered yet; see "Not covered yet" below.
 
 ```rust
-pub trait HdmiPhy {
+pub trait FrlPhy {
     type Error;
 
-    /// Select the FRL rate (or TMDS). Triggers the required lane reconfiguration sequence.
+    /// Select the FRL rate, or turn FRL off. Triggers the required lane reconfiguration
+    /// sequence.
     fn set_frl_rate(&mut self, rate: HdmiForumFrl) -> Result<(), Self::Error>;
 
     /// Drive the given link training patterns on the physical lanes, one per lane.
@@ -162,11 +182,14 @@ pub trait HdmiPhy {
 
     /// Adjust equalization parameters after link training feedback.
     fn adjust_equalization(&mut self, params: EqParams) -> Result<(), Self::Error>;
-
-    /// Enable or disable scrambling on the PHY.
-    fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
 }
 ```
+
+`set_frl_rate` returns once the PHY transmits at the rate, after whatever bring-up its
+hardware needs. `HdmiForumFrl::NotSupported` turns FRL off and enters no other mode:
+entering TMDS is `TmdsPhy::configure`'s. Before the split, the trait was `HdmiPhy`, it
+carried `set_scrambling`, and `NotSupported` meant "switch to TMDS"; the scrambler is the
+source's TMDS scrambler, so it moved to `TmdsPhy`.
 
 `HdmiForumFrl` is from `display-types`. `LtpPattern` is a non-exhaustive enum defined in
 this crate naming the patterns a PHY can drive, with the SCDC values as discriminants
@@ -203,9 +226,9 @@ restrictions included.
 
 `set_frl_output` takes `FrlOutput`: `GapOnly` (gap characters only, during link training
 and while waiting for the sink to start FRL) or `Active` (video, data islands and control
-periods, set once training has succeeded). It is part of `HdmiPhy` because both the link
-training crate and the integration layer drive it, and because `HdmiPhy` already carries
-link-level operations such as `set_scrambling` and `send_ltp`.
+periods, set once training has succeeded). It is part of `FrlPhy` because both the link
+training crate and the integration layer drive it, and because `FrlPhy` already carries
+link-level operations such as `send_ltp`.
 
 `FrlOutput` is deliberately not `#[non_exhaustive]`, unlike `LtpPattern`. The patterns
 are a list that later HDMI versions can extend, and a PHY that cannot generate a new one
@@ -219,14 +242,168 @@ Like `ScdcTransport`, implementations are entirely in platform crates. The trait
 is driven by what the link training and mode-setting layers need to call; vendor-specific
 register sequences are an implementation detail.
 
-**Not covered yet.** Today's surface is what link training needs. The mode-setting layer
-and platform bring-up will also need lane mapping (lane order and polarity), TMDS
-pre-emphasis and swing, spread-spectrum clocking and power states. Following stack-ordered
+**Not covered yet.** Today's surface is what link training and TMDS bring-up need. The
+mode-setting layer and platform bring-up will also need lane mapping (lane order and
+polarity, for both mode traits), TMDS pre-emphasis and swing, spread-spectrum clocking and
+power states beyond off and on. Following stack-ordered
 delivery (see "Design Principles"), each is decided when the layer that needs it is built,
 including whether it belongs in the trait or in a backend's own configuration: lane
 mapping, for example, is fixed by the board and may be set when the backend is
 constructed. New trait methods with default implementations are not breaking changes;
 required ones would be. `doc/roadmap.md` tracks them.
+
+---
+
+### `TmdsPhy`
+
+Covers what TMDS bring-up and tear-down need from the transmitter PHY, and nothing more.
+Each method is a step of those procedures: stop the output, configure, set the scrambler,
+start the output; tear-down and a quick restore set the scrambler alone, with the output
+running.
+
+```rust
+pub enum TmdsClockRatio { Div10, Div40 }
+
+#[non_exhaustive]
+pub struct TmdsPhyConfig {
+    pub character_rate_khz: u32,   // rounded up, never truncated
+    pub clock_ratio: TmdsClockRatio,
+    pub video: TmdsVideo,
+}
+
+#[non_exhaustive]
+pub struct TmdsVideo {
+    pub pixel_clock_khz: u32,
+    pub color_depth: ColorBitDepth,
+    pub color_format: ColorFormat,
+    pub pixel_repetition: u8,      // 0: none
+}
+
+#[non_exhaustive]
+pub struct TmdsPhyCapabilities {
+    pub max_character_rate_khz: u32,
+    pub scrambling: bool,
+    pub low_rate_scrambling: bool, // counts only with `scrambling`
+}
+
+pub trait TmdsPhy {
+    type Error: core::fmt::Debug;
+
+    fn capabilities(&self) -> TmdsPhyCapabilities;
+    fn configure(&mut self, config: TmdsPhyConfig) -> Result<(), Self::Error>;
+    fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
+    fn start_output(&mut self) -> Result<(), Self::Error>;
+    fn stop_output(&mut self) -> Result<(), Self::Error>;
+}
+```
+
+The value types are built with `const fn` constructors and setters (`new`, `with_…`);
+`TmdsPhyCapabilities::new` starts with no scrambler, so a capability is never reported
+that was not stated. The trait's documentation holds the full contract; in short:
+
+- **`configure`** sets the character rate and clock ratio with the output stopped, and
+  leaves it stopped. It gets the video as well: some PHYs are set up from the pixel clock
+  and colour depth rather than the character rate (the Synopsys DesignWare HDMI PHY's
+  tables are keyed by pixel clock, with a column per depth), and one character rate comes
+  from several pixel clocks. A PHY keyed by the rate ignores the rest. Further inputs go
+  into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. An
+  implementation that cannot reconfigure while transmitting may return an error when
+  called with the output running.
+- **`set_scrambling`** turns the source's scrambler on or off, with the output running or
+  stopped. `set_scrambling(false)` succeeds on a PHY without a scrambler, since plain links
+  call it; callers never ask one to scramble.
+- **`start_output`** returns once the PHY transmits at the configured rate, after whatever
+  its hardware needs (a PLL lock, a reset sequence): callers time from its return.
+- **`stop_output`** stops whatever the PHY transmits, FRL included on a PHY still in FRL.
+  Callable in any state, powered off included; stopping a stopped output is not an error.
+  It keeps the PHY powered and configured.
+- **`capabilities`** is a plain report, neither fallible nor `async`. `scrambling` is a
+  field of its own rather than derived from the ceiling: a link at exactly 340 000 kHz may
+  be scrambled, so a PHY whose ceiling is 340 Mcsc and which has no scrambler must be able
+  to say so. Hardware that cannot do something reports it as a capability.
+
+**Errors** are `core::fmt::Debug`, so generic code can format them, with no classification:
+the procedures treat every failed PHY call alike, so a kind would be read by nobody.
+
+**Not in it:** electrical settings (swing, pre-emphasis, lane mapping), which are the
+implementation's; the video pipeline beyond what `TmdsVideo` gives the PHY; hotplug and RX
+sense, which are inputs to the caller; and power, which is `PhyPower`'s.
+
+---
+
+### `PhyPower`
+
+Powering the PHY off and on, shared by `TmdsPhy` and `FrlPhy`.
+
+```rust
+pub trait PhyPower {
+    type Error: core::fmt::Debug;
+
+    fn power_on(&mut self) -> Result<(), Self::Error>;
+    fn power_off(&mut self) -> Result<(), Self::Error>;
+}
+```
+
+- **`power_off`** stops any output and leaves no mode: afterwards the PHY holds no TMDS
+  configuration and no FRL rate, so a bring-up must configure it again. Callable in any
+  state; powering off a PHY that is off is not an error.
+- **`power_on`** leaves the output stopped and no mode entered; the caller then enters one,
+  with `TmdsPhy::configure` or `FrlPhy::set_frl_rate`. Powering on a PHY that is on is not
+  an error and does not change a mode already entered.
+- **`stop_output` is not `power_off`:** it keeps the configuration, so a bring-up after it
+  starts from the state the procedures expect.
+
+**A trait of its own, not a supertrait** of the mode traits. Link training and TMDS
+bring-up bound on a mode trait alone and never change the power; the caller that owns the
+link powers the PHY, on unplug and before a bring-up, and bounds on `PhyPower` as well. A
+supertrait would make every mode-trait implementor write power methods that a PHY which is
+always on cannot honour. One PHY implementing several of these traits may use one error
+type for all of them.
+
+---
+
+### `Clock` and `Delay` (module `time`)
+
+What procedures need from time: a clock to stamp events and check deadlines, and a delay
+to wait between steps and polls. Both plug into the platform's counter and timer.
+
+```rust
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Timestamp(u64); // microseconds from an arbitrary monotonic epoch
+
+pub trait Clock {
+    fn now(&self) -> Timestamp;
+}
+
+pub trait Delay {
+    fn delay(&mut self, duration: core::time::Duration);
+}
+```
+
+- **`Timestamp`** is a type of its own rather than a bare `u64`, so microseconds are not
+  mixed with other counts; no platform `Instant` is assumed, and `u64` microseconds do not
+  wrap in any lifetime a device has. `from_micros`, `as_micros`,
+  `checked_duration_since`, `saturating_duration_since` and `checked_add`, all `const fn`.
+  `checked_add` rounds a duration that is not a whole number of microseconds up, so a
+  deadline is never earlier than asked. Durations are `core::time::Duration`.
+- **`Clock::now`** is neither fallible nor `async`: reading a counter does not wait. It
+  takes `&self`, so one clock can be shared; an implementation with state uses interior
+  mutability. It never goes backwards; only differences mean anything. Resolution is the
+  implementation's, and it documents it.
+- **`Delay::delay`** waits at least the duration, rounding up to its own tick, never less,
+  so a minimum wait holds whatever the timer. It is infallible: a timer that cannot wait
+  leaves the caller nothing to recover with.
+
+**Two traits, not one:** the clock is read where nothing waits (stamping an event, checking
+a deadline), the async delay is `async` while the clock is not, and a platform may take
+them from different peripherals. A test double may implement both on one type, advancing
+its clock by each delay.
+
+**The stack's own `Delay`, not embedded-hal's `DelayNs`:** generic async code bounded by
+embedded-hal-async's `DelayNs` cannot produce a `Send` future, and that crate has no `Send`
+twin; `hdmi-hal-async` gives `Delay` one, as it does every trait. An implementation over a
+`DelayNs` is a few lines, shown in the `time` module's documentation; no adapter type ships
+here, since it would add a dependency and be glue to another crate's trait.
 
 ---
 
@@ -259,9 +436,11 @@ split as `embedded-hal` / `embedded-hal-async`.
 
 The rules that make this work cleanly:
 
-- **Trait shapes are identical.** `hdmi-hal-async::ScdcTransport` and
-  `hdmi-hal-async::HdmiPhy` mirror their sync counterparts exactly; only method
-  signatures gain `async`. No behavioral differences, no extra associated types.
+- **Trait shapes are identical.** `hdmi-hal-async::ScdcTransport`,
+  `hdmi-hal-async::phy::FrlPhy` and the others mirror their sync counterparts exactly; only
+  method signatures gain `async`. Plain reports stay plain functions
+  (`TmdsPhy::capabilities`), and `Clock` is re-exported as it is: reading a counter does
+  not wait. No behavioral differences, no extra associated types.
 - **Data types are shared.** `EqParams` and any other plain data structs are defined
   in `hdmi-hal` and re-exported or referenced from `hdmi-hal-async`. There is one
   definition of each type regardless of which trait variant the caller uses.

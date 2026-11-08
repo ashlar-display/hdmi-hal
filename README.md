@@ -66,7 +66,7 @@ fn configure_frl<T: ScdcTransport>(transport: &mut T) -> Result<(), T::Error> {
 }
 ```
 
-For a complete worked example of both traits with a simulated backend, see
+For a complete worked example of `ScdcTransport` and `FrlPhy` with a simulated backend, see
 [`examples/simulate`](examples/simulate/).
 
 ## Stack position
@@ -88,7 +88,7 @@ flowchart LR
     hal --> be
 ```
 
-Async variants of both traits live in the companion crate `hdmi-hal-async`, following
+Async variants of each trait live in the companion crate `hdmi-hal-async`, following
 the same split as `embedded-hal` / `embedded-hal-async`.
 
 ## Out of scope

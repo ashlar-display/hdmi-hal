@@ -7,19 +7,25 @@ what comes next.
 
 ### PHY traits by link mode (breaking)
 
-`HdmiPhy` covers the FRL PHY. A planned breaking release splits the PHY contract by link
-mode, so TMDS-only hardware implements only what it has:
+The next breaking release splits the PHY contract by link mode, so TMDS-only hardware
+implements only what it has, and adds the time the procedures driving it need. The traits
+are on the development branch, described in the [architecture](architecture.md), and are
+being proven by prototypes of the TMDS bring-up procedures and a simulated sink before the
+release fixes them:
 
 - **`HdmiPhy` is renamed `FrlPhy`**, with no alias. `set_frl_rate(HdmiForumFrl::NotSupported)`
   then means "FRL off" rather than "switch to TMDS"; entering TMDS is `TmdsPhy`'s.
-- **A new `TmdsPhy`:** the TMDS character rate and the 1/10 or 1/40 clock ratio, starting
-  and stopping TMDS output (which the bring-up order and the suspend during a ratio change
-  need), the source's TMDS scrambler (`set_scrambling` moves here), and a capabilities
-  report, including whether the source can scramble at or below 340 Mcsc.
-- **A small power trait:** power off and on, used on unplug and before bring-up. On a PHY
-  implementing both mode traits, entering one mode leaves the other.
-- **Clock and delay traits:** a monotonic `now()` and a delay, which plug into the
-  hardware's timer, for the procedures that drive these traits.
+- **A new `TmdsPhy`:** the TMDS character rate and the 1/10 or 1/40 clock ratio, with the
+  video (`TmdsVideo`) for PHYs set up from the pixel clock; starting and stopping TMDS
+  output; the source's TMDS scrambler (`set_scrambling` moves here); and a capabilities
+  report, including whether the source has a scrambler and whether it can scramble at or
+  below 340 Mcsc.
+- **`PhyPower`:** power off and on, used on unplug and before bring-up, a trait of its own
+  rather than a supertrait of the mode traits. On a PHY implementing both mode traits,
+  entering one mode leaves the other.
+- **The `time` module:** `Timestamp` (microseconds from an arbitrary monotonic epoch),
+  `Clock` (a monotonic `now()`) and `Delay`, which plug into the hardware's counter and
+  timer.
 - **`ddc::DdcBus`, one trait for the DDC bus.** EDID (0x50, with the E-DDC segment pointer
   at 0x30), DisplayID (0x52), SCDC (0x54), HDCP (0x3A, 0x3B) and DDC/CI (0x37) share one bus
   per connector. `DdcBus` offers `write`, `write_read` and `read` on any 7-bit address, and
@@ -36,9 +42,10 @@ mode, so TMDS-only hardware implements only what it has:
     `SendScdcTransport` blanket.
   - **`ScdcTransport::Error`** gets the same `DdcError` bound, implemented for `Infallible`
     and `()`.
-  - The crate stays free of hardware and platform implementations, policy and clocks; it holds
-    traits and the glue between them (`read_block_bytewise`, the adapter).
-- **A cancellation clause** for the PHY traits' futures, as `ScdcTransport` has.
+  - The crate stays free of hardware, platform and clock implementations and of policy; it
+    holds traits and the glue between them (`read_block_bytewise`, the adapter).
+- **A cancellation clause** for the async PHY, power and delay traits' futures in
+  `hdmi-hal-async`, as `ScdcTransport` has.
 
 Every crate that re-exports hdmi-hal's types follows with a breaking release.
 
