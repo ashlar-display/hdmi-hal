@@ -20,3 +20,7 @@ pub mod time;
 /// The FRL rate, as `phy::FrlPhy::set_frl_rate` takes it; re-exported from `display-types` so
 /// that implementations name the same type hdmi-hal does.
 pub use display_types::cea861::hdmi_forum::HdmiForumFrl;
+
+/// The colour depth and format `phy::TmdsVideo` carries; re-exported from `display-types`
+/// so that implementations name the same types hdmi-hal does.
+pub use display_types::{ColorBitDepth, ColorFormat};

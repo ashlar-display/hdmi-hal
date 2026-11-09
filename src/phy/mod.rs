@@ -1,5 +1,9 @@
 use display_types::cea861::hdmi_forum::HdmiForumFrl;
 
+/// The colour depth and format [`TmdsVideo`] carries, re-exported from `display-types` so
+/// that implementations name the same types hdmi-hal does, with no direct dependency.
+pub use display_types::{ColorBitDepth, ColorFormat};
+
 /// A link training pattern to be driven on the physical lanes.
 ///
 /// Produced by the link training state machine and passed to [`FrlPhy::send_ltp`].
@@ -262,9 +266,9 @@ pub struct TmdsVideo {
     /// that a PHY keyed by the pixel clock needs no other field to find its rate.
     pub pixel_clock_khz: u32,
     /// Bits per colour component.
-    pub color_depth: display_types::ColorBitDepth,
+    pub color_depth: ColorBitDepth,
     /// The colour format. YCbCr 4:2:0 halves the character rate.
-    pub color_format: display_types::ColorFormat,
+    pub color_format: ColorFormat,
     /// Pixel repetition: 0 for none, `n` for each pixel sent `n + 1` times.
     pub pixel_repetition: u8,
 }
@@ -273,8 +277,8 @@ impl TmdsVideo {
     /// Constructs `TmdsVideo` with no pixel repetition.
     pub const fn new(
         pixel_clock_khz: u32,
-        color_depth: display_types::ColorBitDepth,
-        color_format: display_types::ColorFormat,
+        color_depth: ColorBitDepth,
+        color_format: ColorFormat,
     ) -> Self {
         Self {
             pixel_clock_khz,
@@ -782,6 +786,14 @@ mod tests {
         assert!(!caps.low_rate_scrambling);
         let caps = caps.with_scrambling(true).with_low_rate_scrambling(true);
         assert!(caps.scrambling && caps.low_rate_scrambling);
+    }
+
+    #[test]
+    fn colour_types_are_display_types_at_both_paths() {
+        let depth: ColorBitDepth = display_types::ColorBitDepth::Depth10;
+        let _: crate::ColorBitDepth = depth;
+        let format: ColorFormat = display_types::ColorFormat::YCbCr420;
+        let _: crate::ColorFormat = format;
     }
 
     #[test]

@@ -50,7 +50,9 @@ The following are explicitly out of scope:
 
 `hdmi-hal` depends on `display-types` for shared HDMI vocabulary types (`HdmiForumFrl`,
 `FrlRate`, and `ColorBitDepth` and `ColorFormat` in `TmdsVideo`). It does not depend on
-`piaf`, `concordance`, or any other stack crate.
+`piaf`, `concordance`, or any other stack crate. The types its public signatures use are
+re-exported (`HdmiForumFrl` at the root; `ColorBitDepth` and `ColorFormat` at the root and
+in `phy`), so an implementation depends on `hdmi-hal` alone.
 
 ```
 display-types   ←   hdmi-hal        ←   culvert
