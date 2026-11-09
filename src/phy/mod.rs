@@ -248,8 +248,12 @@ pub enum TmdsClockRatio {
 /// The video a TMDS link carries, as far as a PHY may need it.
 ///
 /// Some PHYs are set up from the pixel clock and colour depth rather than from the character
-/// rate, and one character rate comes from several pixel clocks (8, 10 and 12 bits per
-/// component, 4:2:0). A PHY keyed by the character rate ignores this.
+/// rate, and one character rate comes from several pixel clocks: for RGB and YCbCr 4:4:4 the
+/// rate is the pixel clock times the bits per component over 8, and for YCbCr 4:2:0 half
+/// that (dw-hdmi,
+/// torvalds/linux `e774d5f1b` `drivers/gpu/drm/bridge/synopsys/dw-hdmi.c:2008–2026`; i915,
+/// `drivers/gpu/drm/i915/display/intel_hdmi.c:1925–1937`). A PHY keyed by the character rate
+/// ignores this.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TmdsVideo {
@@ -271,7 +275,8 @@ pub struct TmdsVideo {
     /// depths (6 or 14 bits, for example) a PHY may not carry. [`TmdsPhy::configure`]
     /// returns an error for a depth or a format the PHY cannot carry.
     pub color_depth: ColorBitDepth,
-    /// The colour format. YCbCr 4:2:0 halves the character rate.
+    /// The colour format. YCbCr 4:2:0 halves the character rate (dw-hdmi and i915, as cited
+    /// on [`TmdsVideo`]).
     pub color_format: ColorFormat,
     /// Pixel repetition: 0 for none, `n` for each pixel sent `n + 1` times.
     pub pixel_repetition: u8,
@@ -343,9 +348,10 @@ pub struct TmdsPhyCapabilities {
     pub max_character_rate_khz: u32,
     /// Whether the PHY has a TMDS scrambler.
     ///
-    /// A field of its own, not derived from the ceiling: a link at exactly 340 000 kHz may
-    /// be scrambled, so a PHY whose ceiling is 340 Mcsc and which has no scrambler says so
-    /// here.
+    /// A field of its own, not derived from the ceiling: whether a link at exactly
+    /// 340 000 kHz is scrambled is the caller's threshold setting (spiritlevel's
+    /// `ScramblingThreshold`), so a PHY whose ceiling is 340 Mcsc and which has no scrambler
+    /// says so here.
     pub scrambling: bool,
     /// Whether the PHY can scramble at or below 340 Mcsc. Counts only with
     /// [`scrambling`](Self::scrambling); read both through

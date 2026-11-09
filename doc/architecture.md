@@ -163,7 +163,11 @@ There is no block write: no consumer needs one yet.
 
 An HDMI connector has one DDC line, an I²C bus shared by several targets: the EDID at
 0x50, with the E-DDC segment pointer at 0x30; DisplayID at 0x52; SCDC at 0x54; HDCP at
-0x3A and 0x3B; DDC/CI at 0x37. `DdcBus` is one contract for that bus, so code that talks to
+0x3A and 0x3B; DDC/CI at 0x37. The EDID, DisplayID, segment pointer and DDC/CI addresses
+are VESA's (E-DDC 1.3, 2.2.1 and 2.2.5; DDC/CI 1.1, 2.3), and E-DDC reserves the two HDCP
+ports (Table 2-2); SCDC's is Linux's SCDC helper's and amdgpu's, and Linux and amdgpu
+address HDCP's primary port at 0x3A (torvalds/linux `e774d5f1b`: `drm_scdc_helper.c:56`,
+`dc_hdmi_types.h:58`, `drm_hdcp.h:30`, `hdcp_msg.c:128–129`). `DdcBus` is one contract for that bus, so code that talks to
 one target (SCDC through `ScdcTransport`, an EDID reader, an HDCP implementation) runs over
 any hardware that reaches it. The module `ddc` names those addresses as constants.
 
@@ -435,7 +439,9 @@ that was not stated. The trait's documentation holds the full contract; in short
   leaves it stopped. It gets the video as well: some PHYs are set up from the pixel clock
   and colour depth rather than the character rate (the Synopsys DesignWare HDMI PHY's
   tables are keyed by pixel clock, with a column per depth), and one character rate comes
-  from several pixel clocks. A PHY keyed by the rate ignores the rest. `pixel_clock_khz` is the
+  from several pixel clocks: for RGB and YCbCr 4:4:4 the rate is the pixel clock times the
+  bits per component over 8, and for YCbCr 4:2:0 half that (dw-hdmi `dw-hdmi.c:2008–2026` and i915 `intel_hdmi.c:1925–1937`,
+  torvalds/linux `e774d5f1b`). A PHY keyed by the rate ignores the rest. `pixel_clock_khz` is the
   clock at which pixels reach the TMDS encoder, pixel repetition included and the
   deep-colour factor not (27 000 kHz for 720(1440)x480i). The convention is chosen and
   stated because Linux drivers read a repeated mode's clock both ways: i915 doubles it for
@@ -463,9 +469,10 @@ that was not stated. The trait's documentation holds the full contract; in short
   `set_frl_rate(NotSupported)` does: nothing in `TmdsPhy` could resume FRL output, so a
   PHY left in FRL with its output stopped would be a state no TMDS caller can use.
 - **`capabilities`** is a plain report, neither fallible nor `async`. `scrambling` is a
-  field of its own rather than derived from the ceiling: a link at exactly 340 000 kHz may
-  be scrambled, so a PHY whose ceiling is 340 Mcsc and which has no scrambler must be able
-  to say so. Hardware that cannot do something reports it as a capability.
+  field of its own rather than derived from the ceiling: whether a link at exactly
+  340 000 kHz is scrambled is the caller's threshold setting (spiritlevel's
+  `ScramblingThreshold`), so a PHY whose ceiling is 340 Mcsc and which has no scrambler
+  must be able to say so. Hardware that cannot do something reports it as a capability.
 
 **Errors** are `core::fmt::Debug`, so generic code can format them, with no classification:
 the procedures treat every failed PHY call alike, so a kind would be read by nobody.

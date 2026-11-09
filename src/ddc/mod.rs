@@ -18,10 +18,13 @@ use core::convert::Infallible;
 /// of segment 1 or higher (VESA E-DDC 1.3, 2.2.5).
 pub const SEGMENT_POINTER: u8 = 0x30;
 
-/// HDCP's primary link port (8-bit address 74h).
+/// HDCP's primary link port (8-bit address 74h; VESA E-DDC 1.3, Table 2-2; Linux's
+/// `DRM_HDCP_DDC_ADDR` and amdgpu's primary port, torvalds/linux `e774d5f1b`,
+/// `include/drm/display/drm_hdcp.h:30`, `drivers/gpu/drm/amd/display/dc/hdcp/hdcp_msg.c:128`).
 pub const HDCP_PRIMARY: u8 = 0x3A;
 
-/// HDCP's secondary link port (8-bit address 76h).
+/// HDCP's secondary link port (8-bit address 76h; VESA E-DDC 1.3, Table 2-2; amdgpu's
+/// secondary port, torvalds/linux `e774d5f1b`, `drivers/gpu/drm/amd/display/dc/hdcp/hdcp_msg.c:129`).
 pub const HDCP_SECONDARY: u8 = 0x3B;
 
 /// DDC/CI, the display's command interface (8-bit address 6Eh; VESA DDC/CI 1.1, 2.3).
@@ -33,7 +36,9 @@ pub const EDID: u8 = 0x50;
 /// The DisplayID structure (8-bit address A4h; VESA E-DDC 1.3, 2.2.1).
 pub const DISPLAYID: u8 = 0x52;
 
-/// SCDC, the status and control data channel (8-bit address A8h).
+/// SCDC, the status and control data channel (8-bit address A8h; Linux's SCDC helper and
+/// amdgpu, torvalds/linux `e774d5f1b`, `drivers/gpu/drm/display/drm_scdc_helper.c:56`,
+/// `drivers/gpu/drm/amd/display/dc/dc_hdmi_types.h:58`).
 pub const SCDC: u8 = 0x54;
 
 /// The highest E-DDC segment (VESA E-DDC 1.3, Tables 5-1 and 5-2: 00h–7Fh).
