@@ -37,7 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TmdsPhyConfig`, `TmdsVideo` (pixel clock, colour depth and format, pixel repetition) and
   `TmdsPhyCapabilities` (the character-rate ceiling and whether the PHY can scramble, at all
   and at or below 340 Mcsc; `scrambles_at_low_rate` reads the two together), built with
-  `const fn` constructors and setters.
+  `const fn` constructors and setters. `TmdsVideo::character_rate_khz` computes the TMDS
+  character rate from the video (deep colour, YCbCr 4:2:2 and 4:2:0), rounded up to the next
+  kHz, so a caller has one place to get the rate a `TmdsPhyConfig` must carry.
 - **`ColorBitDepth` and `ColorFormat` re-exported** from display-types, at the crate root
   and in `phy`, as `HdmiForumFrl` is: `TmdsVideo` uses them, so a `TmdsPhy` implementation
   needs no direct display-types dependency.

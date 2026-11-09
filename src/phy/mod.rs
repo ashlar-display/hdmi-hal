@@ -302,13 +302,55 @@ impl TmdsVideo {
         self.pixel_repetition = pixel_repetition;
         self
     }
+
+    /// The TMDS character rate this video gives, in kHz, rounded up: the
+    /// [`character_rate_khz`](TmdsPhyConfig::character_rate_khz) a [`TmdsPhyConfig`] for it
+    /// carries.
+    ///
+    /// [`pixel_clock_khz`](Self::pixel_clock_khz) times the deep-colour factor (×5/4 at 10
+    /// bits, ×3/2 at 12, ×2 at 16), except for YCbCr 4:2:2, which runs at the pixel clock at
+    /// any depth up to 12 bits, and halved for YCbCr 4:2:0. Pixel repetition is already in
+    /// the pixel clock. The DRM helper and dw-hdmi compute it so, and i915 agrees for the
+    /// formats it carries (torvalds/linux `e774d5f1b`:
+    /// `display/drm_hdmi_helper.c:225–257`, `bridge/synopsys/dw-hdmi.c:2008–2026`,
+    /// `i915/display/intel_hdmi.c:1925–1938`). They round to the nearest Hz; this rounds up to
+    /// the next kHz, so a rate just above a threshold, such as 340 000.5 kHz, is never taken
+    /// for one at or below it.
+    ///
+    /// `None` for a depth TMDS does not carry (6 or 14 bits, or one added to
+    /// [`ColorBitDepth`] later), YCbCr 4:2:2 above 12 bits (the helper refuses it), a format
+    /// added to [`ColorFormat`] later, or a rate above `u32::MAX` kHz.
+    #[must_use]
+    pub const fn character_rate_khz(&self) -> Option<u32> {
+        let (num, den): (u64, u64) = match self.color_depth {
+            ColorBitDepth::Depth8 => (1, 1),
+            ColorBitDepth::Depth10 => (5, 4),
+            ColorBitDepth::Depth12 => (3, 2),
+            ColorBitDepth::Depth16 => (2, 1),
+            _ => return None,
+        };
+        let (num, den) = match self.color_format {
+            ColorFormat::Rgb444 | ColorFormat::YCbCr444 => (num, den),
+            ColorFormat::YCbCr420 => (num, den * 2),
+            // 4:2:2 runs at the pixel clock up to 12 bits; the rest is a format added later.
+            ColorFormat::YCbCr422 if !matches!(self.color_depth, ColorBitDepth::Depth16) => (1, 1),
+            _ => return None,
+        };
+        let rate = (self.pixel_clock_khz as u64 * num).div_ceil(den);
+        if rate > u32::MAX as u64 {
+            None
+        } else {
+            Some(rate as u32)
+        }
+    }
 }
 
 /// What [`TmdsPhy::configure`] sets.
 ///
 /// The caller guarantees that [`character_rate_khz`](Self::character_rate_khz) is the rate
-/// [`video`](Self::video) gives, rounded up. A PHY may configure itself from either: the
-/// character rate, or the video it comes from.
+/// [`video`](Self::video) gives, rounded up, as [`TmdsVideo::character_rate_khz`] computes
+/// it. A PHY may configure itself from either: the character rate, or the video it comes
+/// from.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TmdsPhyConfig {
@@ -495,6 +537,88 @@ pub trait PhyPower {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_character_rate_follows_depth_and_format() {
+        let video = |clock, depth, format| TmdsVideo::new(clock, depth, format);
+        let rgb = ColorFormat::Rgb444;
+        // 4K60 at 8, 10, 12 and 16 bits.
+        assert_eq!(
+            video(594_000, ColorBitDepth::Depth8, rgb).character_rate_khz(),
+            Some(594_000)
+        );
+        assert_eq!(
+            video(297_000, ColorBitDepth::Depth10, rgb).character_rate_khz(),
+            Some(371_250)
+        );
+        assert_eq!(
+            video(297_000, ColorBitDepth::Depth12, rgb).character_rate_khz(),
+            Some(445_500)
+        );
+        assert_eq!(
+            video(297_000, ColorBitDepth::Depth16, rgb).character_rate_khz(),
+            Some(594_000)
+        );
+        // YCbCr 4:4:4 as RGB; 4:2:2 at the pixel clock up to 12 bits, none above.
+        let ycc = |format, depth| video(297_000, depth, format).character_rate_khz();
+        assert_eq!(
+            ycc(ColorFormat::YCbCr444, ColorBitDepth::Depth12),
+            Some(445_500)
+        );
+        assert_eq!(
+            ycc(ColorFormat::YCbCr422, ColorBitDepth::Depth8),
+            Some(297_000)
+        );
+        assert_eq!(
+            ycc(ColorFormat::YCbCr422, ColorBitDepth::Depth10),
+            Some(297_000)
+        );
+        assert_eq!(
+            ycc(ColorFormat::YCbCr422, ColorBitDepth::Depth12),
+            Some(297_000)
+        );
+        assert_eq!(ycc(ColorFormat::YCbCr422, ColorBitDepth::Depth16), None);
+        // 4:2:0 halves, after the deep-colour factor.
+        let yuv420 = ColorFormat::YCbCr420;
+        assert_eq!(
+            video(594_000, ColorBitDepth::Depth8, yuv420).character_rate_khz(),
+            Some(297_000)
+        );
+        assert_eq!(
+            video(594_000, ColorBitDepth::Depth10, yuv420).character_rate_khz(),
+            Some(371_250)
+        );
+        // Rounded up, never truncated: 272 001.25 kHz becomes 272 002.
+        assert_eq!(
+            video(217_601, ColorBitDepth::Depth10, rgb).character_rate_khz(),
+            Some(272_002)
+        );
+        assert_eq!(
+            video(1, ColorBitDepth::Depth8, yuv420).character_rate_khz(),
+            Some(1)
+        );
+        // Depths TMDS does not carry, and overflow.
+        assert_eq!(
+            video(148_500, ColorBitDepth::Depth6, rgb).character_rate_khz(),
+            None
+        );
+        assert_eq!(
+            video(148_500, ColorBitDepth::Depth14, rgb).character_rate_khz(),
+            None
+        );
+        assert_eq!(
+            video(u32::MAX, ColorBitDepth::Depth16, rgb).character_rate_khz(),
+            None
+        );
+        assert_eq!(
+            video(u32::MAX, ColorBitDepth::Depth8, rgb).character_rate_khz(),
+            Some(u32::MAX)
+        );
+        const RATE: Option<u32> =
+            TmdsVideo::new(148_500, ColorBitDepth::Depth8, ColorFormat::Rgb444)
+                .character_rate_khz();
+        assert_eq!(RATE, Some(148_500));
+    }
     use display_types::cea861::hdmi_forum::HdmiForumFrl;
 
     /// A minimal `FrlPhy` that records what it is given. The tests that drive it method by
