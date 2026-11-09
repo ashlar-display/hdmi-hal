@@ -531,7 +531,9 @@ pub trait Delay {
   mutability. It never goes backwards; only differences mean anything. Resolution is the
   implementation's, and it documents it.
 - **`Delay::delay`** waits at least the duration, rounding up to its own tick, never less,
-  so a minimum wait holds whatever the timer. It is infallible: a timer that cannot wait
+  so a minimum wait holds whatever the timer. It is measured on the platform's `Clock`:
+  `now()` after `delay(d)` is at least `d` later than before it, so a test double whose
+  delay does not advance its clock breaks the contract. It is infallible: a timer that cannot wait
   leaves the caller nothing to recover with.
 
 **Two traits, not one:** the clock is read where nothing waits (stamping an event, checking

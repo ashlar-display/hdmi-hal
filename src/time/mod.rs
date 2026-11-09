@@ -100,6 +100,10 @@ pub trait Clock {
 pub trait Delay {
     /// Wait at least `duration`, rounding up to the implementation's own tick; never less,
     /// so a minimum wait holds whatever the timer.
+    ///
+    /// Measured on the platform's [`Clock`]: `now()` read after `delay(d)` is at least `d`
+    /// later than `now()` read before it. A test double whose delay does not advance its
+    /// clock breaks this.
     fn delay(&mut self, duration: Duration);
 }
 
