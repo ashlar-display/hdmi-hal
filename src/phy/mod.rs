@@ -290,6 +290,10 @@ impl TmdsVideo {
 }
 
 /// What [`TmdsPhy::configure`] sets.
+///
+/// The caller guarantees that [`character_rate_khz`](Self::character_rate_khz) is the rate
+/// [`video`](Self::video) gives, rounded up. A PHY may configure itself from either: the
+/// character rate, or the video it comes from.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TmdsPhyConfig {

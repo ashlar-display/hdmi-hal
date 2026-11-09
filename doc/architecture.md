@@ -436,7 +436,8 @@ that was not stated. The trait's documentation holds the full contract; in short
   deep-colour factor not (27 000 kHz for 720(1440)x480i). The convention is chosen and
   stated because Linux drivers read a repeated mode's clock both ways: i915 doubles it for
   the port, dw-hdmi takes the mode's clock and refuses double-clocked modes (the field's
-  documentation cites both). Further inputs go
+  documentation cites both). The caller guarantees that `character_rate_khz` is the rate
+  `video` gives, rounded up, so a PHY may configure itself from either. Further inputs go
   into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. An
   implementation that cannot reconfigure while transmitting may return an error when
   called with the output running.
