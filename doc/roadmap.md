@@ -56,8 +56,10 @@ implementations they are not breaking changes, as required methods they would be
 
 - **Lane mapping** — lane order and polarity, for both mode traits. Fixed by the board, so
   it may belong in a backend's configuration at construction rather than in the traits.
-- **TMDS pre-emphasis and swing** — on `TmdsPhy`; FRL's transmitter equalization is
-  already each lane's TxFFE level in `EqParams`.
+- **TMDS pre-emphasis and swing** — today the implementation's own settings, outside
+  `TmdsPhy`; whether they move into the trait or stay in the backend's configuration is
+  decided when the mode-setting layer needs them, as for lane mapping. FRL's transmitter
+  equalization is already each lane's TxFFE level in `EqParams`.
 - **Spread-spectrum clocking.**
 - **Power states beyond off and on** — standby, partial power.
 
