@@ -439,15 +439,18 @@ that was not stated. The trait's documentation holds the full contract; in short
   documentation cites both). The caller guarantees that `character_rate_khz` is the rate
   `video` gives, rounded up, so a PHY may configure itself from either. Further inputs go
   into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. An
-  implementation that cannot reconfigure while transmitting may return an error when
-  called with the output running. The scrambler state afterwards is unspecified (kept,
+  implementation that cannot reconfigure while transmitting returns an error when called
+  with the output running; one that can stops the output first, so the output is stopped
+  whenever `configure` succeeds. On a powered-off PHY it returns an error. The scrambler state afterwards is unspecified (kept,
   reset or set from the rate, as the implementation does): callers set it with
   `set_scrambling` after `configure`.
 - **`set_scrambling`** turns the source's scrambler on or off, with the output running or
   stopped. `set_scrambling(false)` succeeds on a PHY without a scrambler, since plain links
-  call it; callers never ask one to scramble.
+  call it; callers never ask one to scramble, and `set_scrambling(true)` on one returns an
+  error.
 - **`start_output`** returns once the PHY transmits at the configured rate, after whatever
-  its hardware needs (a PLL lock, a reset sequence): callers time from its return.
+  its hardware needs (a PLL lock, a reset sequence): callers time from its return. Without
+  a successful `configure` since the last power-on, it returns an error.
 - **`stop_output`** stops whatever the PHY transmits, FRL included on a PHY still in FRL.
   Callable in any state, powered off included; stopping a stopped output is not an error.
   It keeps the PHY powered and configured.

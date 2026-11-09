@@ -387,8 +387,10 @@ pub trait TmdsPhy {
     /// Set the character rate and clock ratio, with the output stopped, and leave it
     /// stopped. Enters TMDS mode, leaving FRL on a PHY that also does FRL.
     ///
-    /// An implementation that cannot reconfigure while transmitting may return an error
-    /// when called with the output running.
+    /// Called with the output running, it either returns an error (an implementation that
+    /// cannot reconfigure while transmitting) or stops the output first; when it succeeds,
+    /// the output is stopped. On a PHY that also implements [`PhyPower`] and is powered off,
+    /// it returns an error: the caller powers the PHY on first.
     ///
     /// The scrambler state afterwards is unspecified: an implementation may keep it, reset
     /// it or set it from the rate. Callers set it with
@@ -398,7 +400,8 @@ pub trait TmdsPhy {
     /// Turn the source's TMDS scrambler on or off, with the output running or stopped.
     ///
     /// `set_scrambling(false)` succeeds on a PHY without a scrambler
-    /// ([`TmdsPhyCapabilities::scrambling`] false), since plain links call it.
+    /// ([`TmdsPhyCapabilities::scrambling`] false), since plain links call it;
+    /// `set_scrambling(true)` on such a PHY returns an error.
     fn set_scrambling(&mut self, enabled: bool) -> Result<(), Self::Error>;
 
     /// Start TMDS output at the configured rate.
@@ -406,6 +409,9 @@ pub trait TmdsPhy {
     /// Returns once the PHY transmits, after whatever its hardware needs to get there (a PLL
     /// lock, a reset sequence): callers time from its return, so returning means on the
     /// wire.
+    ///
+    /// Without a successful [`configure`](Self::configure) since the PHY was last powered
+    /// on (or since it was created, for a PHY without [`PhyPower`]), it returns an error.
     fn start_output(&mut self) -> Result<(), Self::Error>;
 
     /// Stop whatever the PHY transmits: TMDS clock and data or, on a PHY still in FRL, FRL
