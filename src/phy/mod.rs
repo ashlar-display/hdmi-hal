@@ -247,7 +247,17 @@ pub enum TmdsClockRatio {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TmdsVideo {
-    /// The pixel clock, in kHz.
+    /// The clock at which pixels reach the TMDS encoder, in kHz: pixel repetition included,
+    /// the deep-colour factor not. For a repeated mode it is the mode's own clock times
+    /// `pixel_repetition + 1`.
+    ///
+    /// Linux lists 720(1440)x480i (VIC 6) at 13 500 kHz with a double-clock flag
+    /// (torvalds/linux `e774d5f1b`, `drivers/gpu/drm/drm_edid.c:791–794`); this field is
+    /// 27 000 for it, with `pixel_repetition` 1. Drivers read such a mode either way: i915
+    /// doubles the clock for the port (`i915/display/intel_hdmi.c:2049–2052`, `2175–2176`),
+    /// while dw-hdmi takes the mode's clock as its pixel clock (`bridge/synopsys/dw-hdmi.c:2004`)
+    /// and refuses double-clocked modes (`:2940–2941`). The convention here is chosen, so
+    /// that a PHY keyed by the pixel clock needs no other field to find its rate.
     pub pixel_clock_khz: u32,
     /// Bits per colour component.
     pub color_depth: display_types::ColorBitDepth,

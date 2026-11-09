@@ -399,7 +399,7 @@ pub struct TmdsPhyConfig {
 
 #[non_exhaustive]
 pub struct TmdsVideo {
-    pub pixel_clock_khz: u32,
+    pub pixel_clock_khz: u32,      // at the encoder: repetition included, deep colour not
     pub color_depth: ColorBitDepth,
     pub color_format: ColorFormat,
     pub pixel_repetition: u8,      // 0: none
@@ -431,7 +431,12 @@ that was not stated. The trait's documentation holds the full contract; in short
   leaves it stopped. It gets the video as well: some PHYs are set up from the pixel clock
   and colour depth rather than the character rate (the Synopsys DesignWare HDMI PHY's
   tables are keyed by pixel clock, with a column per depth), and one character rate comes
-  from several pixel clocks. A PHY keyed by the rate ignores the rest. Further inputs go
+  from several pixel clocks. A PHY keyed by the rate ignores the rest. `pixel_clock_khz` is the
+  clock at which pixels reach the TMDS encoder, pixel repetition included and the
+  deep-colour factor not (27 000 kHz for 720(1440)x480i). The convention is chosen and
+  stated because Linux drivers read a repeated mode's clock both ways: i915 doubles it for
+  the port, dw-hdmi takes the mode's clock and refuses double-clocked modes (the field's
+  documentation cites both). Further inputs go
   into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. An
   implementation that cannot reconfigure while transmitting may return an error when
   called with the output running.
