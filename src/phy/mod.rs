@@ -721,6 +721,13 @@ mod tests {
         assert_eq!(VIDEO_4K60.color_format, display_types::ColorFormat::Rgb444);
         assert_eq!(VIDEO_4K60.pixel_repetition, 0);
         assert_eq!(VIDEO_4K60.with_pixel_repetition(1).pixel_repetition, 1);
+        // At run time as well as in a const, so coverage sees the constructor run.
+        let video = TmdsVideo::new(
+            594_000,
+            display_types::ColorBitDepth::Depth8,
+            display_types::ColorFormat::Rgb444,
+        );
+        assert_eq!(video, VIDEO_4K60);
     }
 
     #[test]
@@ -811,13 +818,17 @@ mod tests {
         }
     }
 
-    /// A caller that powers the PHY bounds on both traits.
+    /// A caller that powers the PHY bounds on both traits; it drives every `TmdsPhy` method,
+    /// so the forwarding to the inner mock is checked too.
     fn power_cycle<P: PhyPower + TmdsPhy>(phy: &mut P, config: TmdsPhyConfig) {
         phy.power_off().unwrap();
         phy.power_off().unwrap();
         phy.power_on().unwrap();
         phy.power_on().unwrap();
+        phy.stop_output().unwrap();
         phy.configure(config).unwrap();
+        let scrambling = phy.capabilities().scrambling;
+        phy.set_scrambling(scrambling).unwrap();
         phy.start_output().unwrap();
     }
 
@@ -835,6 +846,7 @@ mod tests {
         power_cycle(&mut phy, config);
         assert!(phy.powered && phy.tmds.output);
         assert_eq!(phy.tmds.config, Some(config));
+        assert_eq!(phy.tmds.scrambling, Some(true));
         phy.power_off().unwrap();
         assert!(!phy.powered && !phy.tmds.output);
         assert_eq!(phy.tmds.config, None);
