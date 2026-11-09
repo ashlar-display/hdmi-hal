@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`cancel::Cancel`, a flag that asks a procedure to stop**, read between its calls, with
+  `NoCancel` (never cancels) and implementations for `AtomicBool` and any reference to a
+  flag, so one handle can stop link training and a TMDS bring-up alike, without dropping a
+  future mid-call.
 - **`phy::TmdsPhy`, TMDS control of the transmitter**, beside `FrlPhy`, so TMDS-only
   hardware implements nothing of FRL: `capabilities`, `configure` (character rate, clock
   ratio and the video, leaving the output stopped), `set_scrambling`, `start_output` (returns
