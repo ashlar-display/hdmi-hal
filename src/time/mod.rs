@@ -94,9 +94,10 @@ impl Timestamp {
 /// `Sync` as well (`C: Clock + Sync`), so such a clock keeps its state in an atomic or a lock,
 /// not a `Cell`.
 ///
-/// Resolution is the implementation's, and it documents it. The procedures' shortest times
-/// are 1 ms, so a clock of 1 ms or finer keeps their timing as configured; a coarser one is
-/// still correct, but the times they report are as coarse as the clock.
+/// Resolution is the implementation's, and it documents it. The TMDS bring-up procedures
+/// (spiritlevel) wait and poll in steps of 1 ms by default, so a clock of 1 ms or finer
+/// keeps their timing as configured; a coarser one is still correct, but the times they
+/// report are as coarse as the clock.
 pub trait Clock {
     /// The current time. Never earlier than any time this clock returned before.
     fn now(&self) -> Timestamp;
