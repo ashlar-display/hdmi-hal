@@ -410,7 +410,7 @@ pub struct TmdsVideo {
 pub struct TmdsPhyCapabilities {
     pub max_character_rate_khz: u32,
     pub scrambling: bool,
-    pub low_rate_scrambling: bool, // counts only with `scrambling`
+    pub low_rate_scrambling: bool, // counts only with `scrambling`: scrambles_at_low_rate()
 }
 
 pub trait TmdsPhy {

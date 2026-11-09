@@ -32,7 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   once on the wire) and `stop_output` (callable in any state). With `TmdsClockRatio`,
   `TmdsPhyConfig`, `TmdsVideo` (pixel clock, colour depth and format, pixel repetition) and
   `TmdsPhyCapabilities` (the character-rate ceiling and whether the PHY can scramble, at all
-  and at or below 340 Mcsc), built with `const fn` constructors and setters.
+  and at or below 340 Mcsc; `scrambles_at_low_rate` reads the two together), built with
+  `const fn` constructors and setters.
 - **`phy::PhyPower`, power control of the PHY**, shared by `TmdsPhy` and `FrlPhy`:
   `power_on` (output stopped, no mode entered) and `power_off` (no mode left, so a bring-up
   configures again), both callable in any state. A trait of its own, not a supertrait of the

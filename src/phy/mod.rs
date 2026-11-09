@@ -340,7 +340,8 @@ pub struct TmdsPhyCapabilities {
     /// here.
     pub scrambling: bool,
     /// Whether the PHY can scramble at or below 340 Mcsc. Counts only with
-    /// [`scrambling`](Self::scrambling).
+    /// [`scrambling`](Self::scrambling); read both through
+    /// [`scrambles_at_low_rate`](Self::scrambles_at_low_rate).
     pub low_rate_scrambling: bool,
 }
 
@@ -364,6 +365,12 @@ impl TmdsPhyCapabilities {
     pub const fn with_low_rate_scrambling(mut self, low_rate_scrambling: bool) -> Self {
         self.low_rate_scrambling = low_rate_scrambling;
         self
+    }
+
+    /// Whether the PHY can scramble at or below 340 Mcsc: it has a scrambler and can use it
+    /// at low rates. `low_rate_scrambling` without `scrambling` counts as false.
+    pub const fn scrambles_at_low_rate(&self) -> bool {
+        self.scrambling && self.low_rate_scrambling
     }
 }
 
@@ -775,6 +782,16 @@ mod tests {
         assert!(!caps.low_rate_scrambling);
         let caps = caps.with_scrambling(true).with_low_rate_scrambling(true);
         assert!(caps.scrambling && caps.low_rate_scrambling);
+    }
+
+    #[test]
+    fn low_rate_scrambling_counts_only_with_a_scrambler() {
+        let base = TmdsPhyCapabilities::new(600_000);
+        assert!(!base.scrambles_at_low_rate());
+        assert!(!base.with_low_rate_scrambling(true).scrambles_at_low_rate());
+        assert!(!base.with_scrambling(true).scrambles_at_low_rate());
+        let both = base.with_scrambling(true).with_low_rate_scrambling(true);
+        assert!(both.scrambles_at_low_rate());
     }
 
     #[test]
