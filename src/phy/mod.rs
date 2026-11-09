@@ -389,6 +389,10 @@ pub trait TmdsPhy {
     ///
     /// An implementation that cannot reconfigure while transmitting may return an error
     /// when called with the output running.
+    ///
+    /// The scrambler state afterwards is unspecified: an implementation may keep it, reset
+    /// it or set it from the rate. Callers set it with
+    /// [`set_scrambling`](Self::set_scrambling) after `configure`.
     fn configure(&mut self, config: TmdsPhyConfig) -> Result<(), Self::Error>;
 
     /// Turn the source's TMDS scrambler on or off, with the output running or stopped.
