@@ -933,4 +933,143 @@ mod tests {
         assert!(!phy.powered && !phy.tmds.output);
         assert_eq!(phy.tmds.config, None);
     }
+
+    /// One PHY implementing all three traits with one error type, keeping track of the
+    /// mode so the mode rule can be checked.
+    #[derive(Debug, PartialEq, Eq)]
+    enum Mode {
+        None,
+        Frl(HdmiForumFrl),
+        Tmds,
+    }
+
+    struct FullPhy {
+        mode: Mode,
+        powered: bool,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct PhyError;
+
+    impl FrlPhy for FullPhy {
+        type Error = PhyError;
+
+        fn set_frl_rate(&mut self, rate: HdmiForumFrl) -> Result<(), PhyError> {
+            if !self.powered {
+                return Err(PhyError);
+            }
+            self.mode = match rate {
+                HdmiForumFrl::NotSupported => Mode::None,
+                rate => Mode::Frl(rate),
+            };
+            Ok(())
+        }
+
+        fn send_ltp(&mut self, _patterns: LanePatterns) -> Result<(), PhyError> {
+            Ok(())
+        }
+
+        fn set_frl_output(&mut self, _output: FrlOutput) -> Result<(), PhyError> {
+            Ok(())
+        }
+
+        fn adjust_equalization(&mut self, _params: EqParams) -> Result<(), PhyError> {
+            Ok(())
+        }
+    }
+
+    impl TmdsPhy for FullPhy {
+        type Error = PhyError;
+
+        fn capabilities(&self) -> TmdsPhyCapabilities {
+            TmdsPhyCapabilities::new(600_000).with_scrambling(true)
+        }
+
+        fn configure(&mut self, _config: TmdsPhyConfig) -> Result<(), PhyError> {
+            if !self.powered {
+                return Err(PhyError);
+            }
+            self.mode = Mode::Tmds;
+            Ok(())
+        }
+
+        fn set_scrambling(&mut self, _enabled: bool) -> Result<(), PhyError> {
+            Ok(())
+        }
+
+        fn start_output(&mut self) -> Result<(), PhyError> {
+            if self.mode == Mode::Tmds {
+                Ok(())
+            } else {
+                Err(PhyError)
+            }
+        }
+
+        fn stop_output(&mut self) -> Result<(), PhyError> {
+            if matches!(self.mode, Mode::Frl(_)) {
+                self.mode = Mode::None;
+            }
+            Ok(())
+        }
+    }
+
+    impl PhyPower for FullPhy {
+        type Error = PhyError;
+
+        fn power_on(&mut self) -> Result<(), PhyError> {
+            self.powered = true;
+            Ok(())
+        }
+
+        fn power_off(&mut self) -> Result<(), PhyError> {
+            self.powered = false;
+            self.mode = Mode::None;
+            Ok(())
+        }
+    }
+
+    /// FRL training gives up and the link falls back to TMDS, with one error type for all
+    /// three traits, named through `TmdsPhy` as `PhyPower`'s documentation shows.
+    fn fall_back_to_tmds<P>(phy: &mut P, config: TmdsPhyConfig) -> Result<(), <P as TmdsPhy>::Error>
+    where
+        P: TmdsPhy
+            + FrlPhy<Error = <P as TmdsPhy>::Error>
+            + PhyPower<Error = <P as TmdsPhy>::Error>,
+    {
+        phy.power_on()?;
+        phy.set_frl_rate(HdmiForumFrl::Rate6Gbps4Lanes)?;
+        phy.send_ltp(LanePatterns::default())?;
+        phy.adjust_equalization(EqParams::new())?;
+        phy.set_frl_output(FrlOutput::GapOnly)?;
+        phy.set_frl_rate(HdmiForumFrl::NotSupported)?;
+        phy.stop_output()?;
+        phy.configure(config)?;
+        let scrambling = phy.capabilities().scrambling;
+        phy.set_scrambling(scrambling)?;
+        phy.start_output()
+    }
+
+    #[test]
+    fn one_type_implements_all_three_traits_with_one_error_type() {
+        let mut phy = FullPhy {
+            mode: Mode::None,
+            powered: false,
+        };
+        let config = TmdsPhyConfig::new(594_000, TmdsClockRatio::Div40, VIDEO_4K60);
+        assert_eq!(phy.configure(config), Err(PhyError));
+        assert_eq!(
+            phy.set_frl_rate(HdmiForumFrl::Rate3Gbps3Lanes),
+            Err(PhyError)
+        );
+        fall_back_to_tmds(&mut phy, config).unwrap();
+        assert_eq!(phy.mode, Mode::Tmds);
+        // A rate leaves TMDS; stop_output on a PHY in FRL leaves FRL.
+        phy.set_frl_rate(HdmiForumFrl::Rate3Gbps3Lanes).unwrap();
+        assert_eq!(phy.mode, Mode::Frl(HdmiForumFrl::Rate3Gbps3Lanes));
+        TmdsPhy::stop_output(&mut phy).unwrap();
+        assert_eq!(phy.mode, Mode::None);
+        assert_eq!(phy.start_output(), Err(PhyError));
+        phy.power_off().unwrap();
+        assert!(!phy.powered);
+    }
 }
