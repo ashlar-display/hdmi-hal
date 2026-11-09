@@ -281,7 +281,8 @@ for FRL, `TmdsPhy` for TMDS, and `PhyPower` for power, shared by both. A TMDS-on
 implements nothing of FRL; a PHY that is always on implements no power trait. On a PHY
 implementing both mode traits, **entering one mode leaves the other**: `TmdsPhy::configure`
 leaves FRL, `FrlPhy::set_frl_rate` with a rate leaves TMDS, and
-`set_frl_rate(HdmiForumFrl::NotSupported)` turns FRL off and enters nothing. The rule is
+`set_frl_rate(HdmiForumFrl::NotSupported)` turns FRL off and enters nothing, as
+`TmdsPhy::stop_output` on a PHY in FRL does. The rule is
 stated in both mode traits' documentation and in `PhyPower`'s.
 
 ### `FrlPhy`
@@ -453,7 +454,9 @@ that was not stated. The trait's documentation holds the full contract; in short
   a successful `configure` since the last power-on, it returns an error.
 - **`stop_output`** stops whatever the PHY transmits, FRL included on a PHY still in FRL.
   Callable in any state, powered off included; stopping a stopped output is not an error.
-  It keeps the PHY powered and configured.
+  It keeps the PHY powered and its TMDS configuration. A PHY in FRL leaves FRL, as
+  `set_frl_rate(NotSupported)` does: nothing in `TmdsPhy` could resume FRL output, so a
+  PHY left in FRL with its output stopped would be a state no TMDS caller can use.
 - **`capabilities`** is a plain report, neither fallible nor `async`. `scrambling` is a
   field of its own rather than derived from the ceiling: a link at exactly 340 000 kHz may
   be scrambled, so a PHY whose ceiling is 340 Mcsc and which has no scrambler must be able
@@ -485,8 +488,8 @@ pub trait PhyPower {
   configuration and no FRL rate, so a bring-up must configure it again. Callable in any
   state; powering off a PHY that is off is not an error.
 - **`power_on`** leaves the output stopped and no mode entered; the caller then enters one,
-  with `TmdsPhy::configure` or `FrlPhy::set_frl_rate`. Powering on a PHY that is on is not
-  an error and does not change a mode already entered.
+  with `TmdsPhy::configure` or `FrlPhy::set_frl_rate`. On a PHY that is already on it does
+  nothing: not an error, and neither the mode nor the output changes.
 - **`stop_output` is not `power_off`:** it keeps the configuration, so a bring-up after it
   starts from the state the procedures expect.
 
