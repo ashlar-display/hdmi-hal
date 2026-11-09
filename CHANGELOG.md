@@ -73,8 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bus cannot serve SCDC.
 - **`DdcErrorKind` implements `DdcError`**, for an implementation with nothing more to report.
 - The crate's scope, as its docs now say: traits and the glue between its own traits
-  (`read_block_bytewise`, `ScdcOverDdc`); no hardware or platform implementations, no
-  policy, no clocks.
+  (`read_block_bytewise`, `ScdcOverDdc`); no hardware, platform or clock implementations,
+  no policy. The `time` module's `Clock` and `Delay` are traits, implemented by the
+  platform.
 
 ### Internal
 
