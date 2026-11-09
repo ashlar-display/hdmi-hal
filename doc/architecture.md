@@ -540,7 +540,8 @@ pub trait Delay {
   deadline is never earlier than asked. Durations are `core::time::Duration`.
 - **`Clock::now`** is neither fallible nor `async`: reading a counter does not wait. It
   takes `&self`, so one clock can be shared; an implementation with state uses interior
-  mutability. It never goes backwards; only differences mean anything. Resolution is the
+  mutability, and one used from a task on a multi-threaded executor is `Sync` too (an
+  atomic or a lock, not a `Cell`): a future holding `&C` is `Send` only when `C: Sync`. It never goes backwards; only differences mean anything. Resolution is the
   implementation's, and it documents it.
 - **`Delay::delay`** waits at least the duration, rounding up to its own tick, never less,
   so a minimum wait holds whatever the timer. It is measured on the platform's `Clock`:

@@ -89,7 +89,10 @@ impl Timestamp {
 /// A monotonic clock.
 ///
 /// Neither fallible nor `async`: reading a counter does not wait. Takes `&self`, so one clock
-/// can be shared; an implementation with state uses interior mutability.
+/// can be shared; an implementation with state uses interior mutability. Code that holds a
+/// clock across an `.await` in a task spawned on a multi-threaded executor needs it to be
+/// `Sync` as well (`C: Clock + Sync`), so such a clock keeps its state in an atomic or a lock,
+/// not a `Cell`.
 ///
 /// Resolution is the implementation's, and it documents it. The procedures' shortest times
 /// are 1 ms, so a clock of 1 ms or finer keeps their timing as configured; a coarser one is
