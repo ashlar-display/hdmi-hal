@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`HdmiPhy` is renamed `FrlPhy`**, with no alias: implementations and bounds change the
   name. `set_frl_rate(HdmiForumFrl::NotSupported)` now means "FRL off" and enters no other
   mode, no longer "switch to TMDS"; entering TMDS is `TmdsPhy::configure`'s. On a PHY
-  implementing both, entering one mode leaves the other.
+  implementing both, entering one mode leaves the other. `FrlPhy::Error` is bounded by
+  `core::fmt::Debug`, as the errors of `TmdsPhy` and `PhyPower` are.
 - **`set_scrambling` moves from `FrlPhy` to `TmdsPhy`**, with the same meaning: the
   scrambler it controls is the source's TMDS scrambler. An `HdmiPhy` implementation's
   `set_scrambling` becomes part of its `TmdsPhy` implementation.

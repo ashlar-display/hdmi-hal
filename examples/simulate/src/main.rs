@@ -97,7 +97,6 @@ where
 fn exercise_phy<P>(phy: &mut P)
 where
     P: FrlPhy,
-    P::Error: core::fmt::Debug,
 {
     phy.set_frl_rate(HdmiForumFrl::Rate6Gbps4Lanes).unwrap();
     phy.send_ltp(LanePatterns {

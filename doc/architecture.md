@@ -294,7 +294,7 @@ configuration is not covered yet; see "Not covered yet" below.
 
 ```rust
 pub trait FrlPhy {
-    type Error;
+    type Error: core::fmt::Debug;
 
     /// Select the FRL rate, or turn FRL off. Triggers the required lane reconfiguration
     /// sequence.

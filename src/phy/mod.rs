@@ -199,8 +199,9 @@ impl EqParams {
 /// [`set_frl_rate`](Self::set_frl_rate) with a rate leaves TMDS. [`TmdsPhy::stop_output`]
 /// on a PHY in FRL leaves FRL, as `set_frl_rate(NotSupported)` does.
 pub trait FrlPhy {
-    /// Error type returned by PHY operations.
-    type Error;
+    /// Error type returned by PHY operations; `Debug`, as the other PHY traits' errors are,
+    /// so generic code can format it.
+    type Error: core::fmt::Debug;
 
     /// Select the FRL rate, or turn FRL off. Triggers the required lane reconfiguration
     /// sequence.
