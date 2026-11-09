@@ -467,6 +467,14 @@ that was not stated. The trait's documentation holds the full contract; in short
 **Errors** are `core::fmt::Debug`, so generic code can format them, with no classification:
 the procedures treat every failed PHY call alike, so a kind would be read by nobody.
 
+**One type, several traits.** A type implementing `TmdsPhy` and `DdcBus` (a controller
+owning its DDC master and its PHY) has two `capabilities` methods, so with both traits in
+scope `p.capabilities()` is ambiguous; it calls `TmdsPhy::capabilities(&p)`. One value
+rarely serves as both, since the bus is shared by handle and the PHY is held by `&mut`, so
+the names are kept. Generic code bounded by `TmdsPhy + PhyPower` names the error through
+one trait and ties the other to it (`PhyPower<Error = <P as TmdsPhy>::Error>`), as
+`PhyPower`'s documentation shows.
+
 **Not in it:** electrical settings (swing, pre-emphasis, lane mapping), which are the
 implementation's; the video pipeline beyond what `TmdsVideo` gives the PHY; hotplug and RX
 sense, which are inputs to the caller; and power, which is `PhyPower`'s.

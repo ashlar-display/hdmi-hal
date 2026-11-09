@@ -445,6 +445,21 @@ pub trait TmdsPhy {
 /// before a bring-up, bounds on `PhyPower` as well. One PHY implementing several of these
 /// traits may use one error type for all of them.
 ///
+/// With both bounds, `P::Error` is ambiguous; generic code that wants one error type names
+/// it through one trait and ties the other to it:
+///
+/// ```
+/// use hdmi_hal::phy::{PhyPower, TmdsPhy, TmdsPhyConfig};
+///
+/// fn power_and_configure<P>(phy: &mut P, config: TmdsPhyConfig) -> Result<(), <P as TmdsPhy>::Error>
+/// where
+///     P: TmdsPhy + PhyPower<Error = <P as TmdsPhy>::Error>,
+/// {
+///     phy.power_on()?;
+///     phy.configure(config)
+/// }
+/// ```
+///
 /// For a PHY implementing both mode traits, entering one mode leaves the other:
 /// [`TmdsPhy::configure`] leaves FRL, and [`FrlPhy::set_frl_rate`] with a rate leaves TMDS;
 /// `set_frl_rate(NotSupported)` turns FRL off and enters nothing, as
