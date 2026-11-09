@@ -266,6 +266,10 @@ pub struct TmdsVideo {
     /// that a PHY keyed by the pixel clock needs no other field to find its rate.
     pub pixel_clock_khz: u32,
     /// Bits per colour component.
+    ///
+    /// The type is display-types' depth vocabulary, decoded from the EDID, so it names
+    /// depths (6 or 14 bits, for example) a PHY may not carry. [`TmdsPhy::configure`]
+    /// returns an error for a depth or a format the PHY cannot carry.
     pub color_depth: ColorBitDepth,
     /// The colour format. YCbCr 4:2:0 halves the character rate.
     pub color_format: ColorFormat,

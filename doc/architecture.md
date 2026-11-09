@@ -441,7 +441,9 @@ that was not stated. The trait's documentation holds the full contract; in short
   the port, dw-hdmi takes the mode's clock and refuses double-clocked modes (the field's
   documentation cites both). The caller guarantees that `character_rate_khz` is the rate
   `video` gives, rounded up, so a PHY may configure itself from either. Further inputs go
-  into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. An
+  into `TmdsVideo`, which is `#[non_exhaustive]`, so adding one is not breaking. `color_depth`
+  is display-types' EDID depth type, which names depths a PHY may not carry; `configure`
+  returns an error for a depth or format the PHY cannot carry. An
   implementation that cannot reconfigure while transmitting returns an error when called
   with the output running; one that can stops the output first, so the output is stopped
   whenever `configure` succeeds. On a powered-off PHY it returns an error. The scrambler state afterwards is unspecified (kept,
