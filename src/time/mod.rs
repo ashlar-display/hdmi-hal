@@ -11,6 +11,11 @@
 //! its `Send` twin's blanket implementation, and the sync traits keep the same shape. An
 //! implementation may implement either trait for a reference to its own type.
 //!
+//! That is also how one test double serves as both when a procedure takes the clock (`&C`)
+//! and the delay (`&mut D`) as separate arguments: the double keeps its time in a `Cell` (or
+//! an atomic, for `Send` code) and implements `Clock` for itself and `Delay` for `&Double`,
+//! so `&double` and `&mut &double` can be passed at once.
+//!
 //! # Over embedded-hal
 //!
 //! [`Delay`] is the stack's own trait rather than a bound on embedded-hal's `DelayNs`, so that

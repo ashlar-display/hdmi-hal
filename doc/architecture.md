@@ -568,7 +568,10 @@ its clock by each delay.
 one later would be breaking (`&` is a fundamental type, so a downstream crate may already
 implement the traits for a reference to its own type), so the choice is made now. An
 implementation that wants to be shared implements the traits for a reference to its own
-type.
+type. That is how one test double serves as clock and delay when a procedure takes them as
+separate arguments (`&C` and `&mut D`): it keeps its time in a `Cell` (an atomic for `Send`
+code) and implements `Delay` for `&Double`. Whether the procedures take one value or two is
+settled with their types, in the TMDS bring-up prototype.
 
 **The stack's own `Delay`, not embedded-hal's `DelayNs`:** generic async code bounded by
 embedded-hal-async's `DelayNs` cannot produce a `Send` future, and that crate has no `Send`
