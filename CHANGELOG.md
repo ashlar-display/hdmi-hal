@@ -76,6 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`read_block_bytewise`, `ScdcOverDdc`); no hardware or platform implementations, no
   policy, no clocks.
 
+### Internal
+
+- `embedded-hal` 1.0 is a dev-dependency, for the `time` module's documentation example of
+  a `Delay` over `DelayNs`; it does not reach users.
+
 ## [0.6.1] - 2026-11-02
 
 ### Changed
