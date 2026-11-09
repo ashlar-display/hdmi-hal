@@ -6,6 +6,11 @@
 //! and a timer. A procedure that needs both bounds on both; a test double may implement both
 //! on one type, advancing its clock by each delay.
 //!
+//! Neither trait has a forwarding implementation for references (`impl Clock for &C`), as
+//! [`DdcBus`](crate::ddc::DdcBus) has none: hdmi-hal-async's `Delay` cannot have one beside
+//! its `Send` twin's blanket implementation, and the sync traits keep the same shape. An
+//! implementation may implement either trait for a reference to its own type.
+//!
 //! # Over embedded-hal
 //!
 //! [`Delay`] is the stack's own trait rather than a bound on embedded-hal's `DelayNs`, so that

@@ -543,6 +543,14 @@ a deadline), the async delay is `async` while the clock is not, and a platform m
 them from different peripherals. A test double may implement both on one type, advancing
 its clock by each delay.
 
+**No forwarding implementations** (`impl Clock for &C`, `impl Delay for &mut D`), as for
+`DdcBus`: in `hdmi-hal-async`, a forwarding `Delay` for references would conflict with
+`SendDelay`'s blanket implementation (E0119), and the sync traits keep the same shape. Adding
+one later would be breaking (`&` is a fundamental type, so a downstream crate may already
+implement the traits for a reference to its own type), so the choice is made now. An
+implementation that wants to be shared implements the traits for a reference to its own
+type.
+
 **The stack's own `Delay`, not embedded-hal's `DelayNs`:** generic async code bounded by
 embedded-hal-async's `DelayNs` cannot produce a `Send` future, and that crate has no `Send`
 twin; `hdmi-hal-async` gives `Delay` one, as it does every trait. An implementation over a
