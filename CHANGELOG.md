@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`HdmiPhy` is renamed `FrlPhy`**, with no alias: implementations and bounds change the
+  name. `set_frl_rate(HdmiForumFrl::NotSupported)` now means "FRL off" and enters no other
+  mode, no longer "switch to TMDS"; entering TMDS is `TmdsPhy::configure`'s. On a PHY
+  implementing both, entering one mode leaves the other. `FrlPhy::Error` is bounded by
+  `core::fmt::Debug`, as the errors of `TmdsPhy` and `PhyPower` are.
+- **`set_scrambling` moves from `FrlPhy` to `TmdsPhy`**, with the same meaning: the
+  scrambler it controls is the source's TMDS scrambler. An `HdmiPhy` implementation's
+  `set_scrambling` becomes part of its `TmdsPhy` implementation.
+- **`ScdcTransport::Error` is bounded by `DdcError`.** Every transport error now carries a
+  `DdcErrorKind`, so generic code can tell a sink that does not answer from a bus that timed
+  out, was busy or is gone. `DdcError` is implemented for `Infallible`, `()` and
+  `DdcErrorKind`; a transport with its own error type implements `DdcError::kind` for it
+  (`Other` where it cannot tell). Outside hdmi-hal, `DdcError` cannot be implemented for
+  another foreign type such as `u8`: such a transport needs an error type of its own.
+
+### Added
+
+- **`cancel::Cancel`, a flag that asks a procedure to stop**, read between its calls, with
+  `NoCancel` (never cancels) and implementations for `AtomicBool` and any reference to a
+  flag, so one handle can stop link training and a TMDS bring-up alike, without dropping a
+  future mid-call.
+- **`phy::TmdsPhy`, TMDS control of the transmitter**, beside `FrlPhy`, so TMDS-only
+  hardware implements nothing of FRL: `capabilities`, `configure` (character rate, clock
+  ratio and the video, leaving the output stopped), `set_scrambling`, `start_output` (returns
+  once on the wire) and `stop_output` (callable in any state). With `TmdsClockRatio`,
+  `TmdsPhyConfig`, `TmdsVideo` (pixel clock, colour depth and format, pixel repetition) and
+  `TmdsPhyCapabilities` (the character-rate ceiling and whether the PHY can scramble, at all
+  and at or below 340 Mcsc; `scrambles_at_low_rate` reads the two together), built with
+  `const fn` constructors and setters. `TmdsVideo::character_rate_khz` computes the TMDS
+  character rate from the video (deep colour, YCbCr 4:2:2 and 4:2:0), rounded up to the next
+  kHz, so a caller has one place to get the rate a `TmdsPhyConfig` must carry.
+- **`ColorBitDepth` and `ColorFormat` re-exported** from display-types, at the crate root
+  and in `phy`, as `HdmiForumFrl` is: `TmdsVideo` uses them, so a `TmdsPhy` implementation
+  needs no direct display-types dependency.
+- **`phy::PhyPower`, power control of the PHY**, shared by `TmdsPhy` and `FrlPhy`:
+  `power_on` (output stopped, no mode entered) and `power_off` (no mode left, so a bring-up
+  configures again), both callable in any state. A trait of its own, not a supertrait of the
+  mode traits, so a PHY that is always on implements only those, and link training and TMDS
+  bring-up never need it.
+- **`time` module: `Timestamp`, `Clock` and `Delay`**, for procedures that wait and keep
+  deadlines without a platform `Instant`. `Timestamp` is microseconds from an arbitrary
+  monotonic epoch (`from_micros`, `as_micros`, `checked_duration_since`,
+  `saturating_duration_since`, `checked_add`, which rounds a duration up to the
+  microsecond; `const fn`). `Clock::now` takes `&self` and is neither fallible nor `async`;
+  `Delay::delay` waits at least the duration it is given. The module docs show a `Delay`
+  over embedded-hal's `DelayNs`; hdmi-hal itself does not depend on embedded-hal.
+- **`ddc` module: `DdcBus`, one trait for a connector's whole DDC bus.** `write`,
+  `write_read` and `read` on any 7-bit address, and `read_segmented` for E-DDC reads of the
+  EDID and DisplayID structures (VESA E-DDC 1.3), which write the segment pointer at 0x30
+  and read the target with no STOP between, and are the one read EDID-only hardware can do.
+  All methods take `&self`, so several users share one bus; one call is one transaction,
+  and the implementation serializes concurrent calls. Arguments are checked before bus
+  activity: reserved addresses, segments above 7Fh and reads past a segment's 256 bytes are
+  refused; empty buffers succeed with no bus activity.
+- **`DdcError`, `DdcErrorKind`, `NoAcknowledgeSource`:** every `DdcBus` error carries a kind
+  (not acknowledged, at the address, a data byte or unknown; timeout; busy; unsupported;
+  detached; other). Implemented for `Infallible` and `()`.
+- **`DdcCapabilities`:** what an implementation can do, never more: per-operation length
+  limits, reachable addresses, E-DDC targets and the highest segment, split reads, the
+  clock-stretch timeout. Built with `const fn` constructors and setters.
+- **`EddcTarget`** and constants for the bus's addresses (`SEGMENT_POINTER`, `EDID`,
+  `DISPLAYID`, `SCDC`, `HDCP_PRIMARY`, `HDCP_SECONDARY`, `DDC_CI`), and
+  `is_usable_address`.
+- **`scdc::ScdcOverDdc`, `ScdcTransport` over a `DdcBus`.** Reads and block reads are one
+  `write_read` at 0x54 each, writes one `write`; it holds any handle that dereferences to the
+  bus (`&B`, `Rc<B>`, `Arc<B>`), so other users share the bus. `new` and `bytewise` (block
+  reads one register per transaction, the documented exception) return the handle when the
+  bus cannot serve SCDC.
+- **`DdcErrorKind` implements `DdcError`**, for an implementation with nothing more to report.
+- The crate's scope, as its docs now say: traits and the glue between its own traits
+  (`read_block_bytewise`, `ScdcOverDdc`); no hardware, platform or clock implementations,
+  no policy. The `time` module's `Clock` and `Delay` are traits, implemented by the
+  platform.
+
+### Internal
+
+- `embedded-hal` 1.0 is a dev-dependency, for the `time` module's documentation example of
+  a `Delay` over `DelayNs`; it does not reach users.
+
 ## [0.6.1] - 2026-11-02
 
 ### Changed
