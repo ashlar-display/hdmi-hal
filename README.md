@@ -65,6 +65,11 @@ fn configure_frl<T: ScdcTransport>(transport: &mut T) -> Result<(), T::Error> {
 For a complete worked example of both traits with a simulated backend, see
 [`examples/simulate`](examples/simulate/).
 
+## `no_std`
+
+`hdmi-hal` is `#![no_std]` and needs no allocator, so the traits can be implemented on
+bare-metal targets as well as in a Linux userspace backend.
+
 ## Stack position
 
 `hdmi-hal` sits between the platform backends and the protocol logic crates. It has no

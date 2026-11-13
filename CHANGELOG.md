@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The simulate example is format-checked and linted**, in CI and in the publish
   workflow's `verify` job; as its own workspace, the root `cargo fmt` and `clippy` did not
   reach it.
+- **The README says the crate is `no_std`** and needs no allocator.
 
 ## [0.6.1] - 2026-11-02
 
