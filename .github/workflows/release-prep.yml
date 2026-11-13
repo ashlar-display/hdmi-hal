@@ -138,6 +138,11 @@ jobs:
         # the new package version; also acts as a quick compile sanity check.
         run: cargo check
 
+      - name: Refresh examples/simulate/Cargo.lock
+        # The example is its own workspace with a tracked lock file, which records
+        # this crate's version through the path dependency; CI runs it with --locked.
+        run: cargo check --manifest-path examples/simulate/Cargo.toml
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -147,7 +152,7 @@ jobs:
         run: |
           NEW="${{ steps.version.outputs.new }}"
           git checkout -b "release/v${NEW}"
-          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git add Cargo.toml Cargo.lock examples/simulate/Cargo.lock CHANGELOG.md
           git commit -m "Release v${NEW}"
           git push origin "release/v${NEW}"
 
@@ -169,6 +174,7 @@ jobs:
           | \`Cargo.toml\` | \`${CURRENT}\` → \`${NEW}\` |
           | \`CHANGELOG.md\` | \`[Unreleased]\` stamped with today's date |
           | \`Cargo.lock\` | regenerated |
+          | \`examples/simulate/Cargo.lock\` | regenerated |
 
           Once CI passes and this PR merges, run the [Release Tag](${{ github.server_url }}/${{ github.repository }}/actions/workflows/release-tag.yml) workflow to push the tag and kick off publish.
           EOF
