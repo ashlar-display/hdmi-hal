@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`doc/setup.md` lists the checks CI runs**: clippy over all targets, rustdoc with
   `-D warnings`, the tests, the bare-metal build, the MSRV check, coverage and the simulate
   example.
+- **`CONTRIBUTING.md` matches the CI checks** (clippy over all targets, rustdoc with
+  `-D warnings`, the tests, the bare-metal build, the example, the MSRV and coverage), and
+  its publishing section names display-types and the crates that depend on hdmi-hal
+  instead of the placeholder names `scdc` and `frl-training`.
 
 ## [0.6.1] - 2026-11-02
 

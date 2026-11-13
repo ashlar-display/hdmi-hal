@@ -21,8 +21,10 @@ is fine.
 
 ## Coding standards
 
-- Run `cargo fmt` and `cargo clippy -- -D warnings` before pushing.
-- Public items need rustdoc comments (`cargo rustdoc -- -D missing_docs` must pass).
+- Run `cargo fmt` and `cargo clippy --all-targets -- -D warnings` before pushing
+  ([doc/setup.md](doc/setup.md) lists the commands CI runs).
+- Public items need rustdoc comments, and intra-doc links must resolve
+  (`cargo rustdoc --all-features -- -D warnings` must pass).
 - `#![forbid(unsafe_code)]` is enforced; no unsafe code.
 - All traits and public types must be usable in bare `no_std` environments. No trait
   method may require allocation.
@@ -33,7 +35,10 @@ is fine.
 - Write commit messages in the imperative mood ("Add support for …", not "Added …").
 - Keep commits logically atomic. A PR that touches three unrelated things should be
   three commits (or three PRs).
-- CI must be green before a PR can merge: fmt, clippy, and docs.
+- CI must be green before a PR can merge: fmt, clippy, docs, the tests, the bare-metal
+  `no_std` build and the simulate example, the same tests and build on the MSRV
+  (Rust 1.85), and coverage must not drop more than 0.1% below the baseline (stored in
+  `.coverage-baseline`).
 
 ## Trait stability
 
@@ -44,9 +49,13 @@ known consumers in the stack.
 
 ## Publishing and downstream dependencies
 
-hdmi-hal is consumed by `scdc`, `frl-training`, and platform backend crates as a
-versioned dependency. Changes that add or modify public API must be merged, tagged, and
-published to crates.io before downstream crates can adopt them. The workflow is:
+hdmi-hal builds on [display-types](https://github.com/ashlar-display/display-types) and
+re-exports the types its traits use, so a breaking release of display-types is a breaking
+release of hdmi-hal. The protocol and link crates of
+[Ashlar](https://ashlar-display.org/crates.html) and platform backends depend on hdmi-hal
+as a versioned crate dependency. Changes that add or modify public API must be merged,
+tagged, and published to crates.io before downstream crates can adopt them. The workflow
+is:
 
 1. Merge and tag a release in this repo (`vX.Y.Z`).
 2. The publish CI workflow uploads the new version to crates.io.
