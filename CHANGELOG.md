@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   workflow's `verify` job; as its own workspace, the root `cargo fmt` and `clippy` did not
   reach it.
 - **The README says the crate is `no_std`** and needs no allocator.
+- **The coverage job runs cargo with `--locked`**, as the other jobs do, so it measures
+  the build the tests ran; `doc/setup.md`'s commands match.
 
 ## [0.6.1] - 2026-11-02
 

@@ -59,7 +59,7 @@ component, then measure as CI does:
 rustup component add llvm-tools-preview
 cargo install cargo-llvm-cov --locked
 cargo llvm-cov clean --workspace
-cargo llvm-cov --no-report
+cargo llvm-cov --no-report --locked
 cargo llvm-cov report --summary-only
 ```
 

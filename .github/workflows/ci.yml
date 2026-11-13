@@ -161,7 +161,7 @@ jobs:
       - name: Measure coverage
         run: |
           cargo llvm-cov clean --workspace
-          cargo llvm-cov --no-report
+          cargo llvm-cov --no-report --locked
           LINES=$(cargo llvm-cov report --json --summary-only \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d['data'][0]['totals']['lines']['percent'], 2))")
           echo "COVERAGE=${LINES}" >> "$GITHUB_ENV"
