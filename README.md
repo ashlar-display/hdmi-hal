@@ -40,18 +40,22 @@ Implement a trait against your hardware backend:
 use hdmi_hal::scdc::ScdcTransport;
 
 struct MyI2cBackend { /* ... */ }
+# #[derive(Debug)]
+# struct MyError;
 
 impl ScdcTransport for MyI2cBackend {
     type Error = MyError;
 
-    fn read(&self, reg: u8) -> Result<u8, MyError> { /* ... */ }
-    fn write(&mut self, reg: u8, value: u8) -> Result<(), MyError> { /* ... */ }
+    fn read(&self, reg: u8) -> Result<u8, MyError> { todo!("read one register") }
+    fn write(&mut self, reg: u8, value: u8) -> Result<(), MyError> { todo!("write one register") }
 
     // One DDC transaction for the whole buffer (a length limit, if any, of at least
     // 16 bytes). A backend that cannot burst-read
     // implements this with `hdmi_hal::scdc::read_block_bytewise(self, reg, buf)` and
     // says so: its reads are then one register at a time.
-    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), MyError> { /* ... */ }
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), MyError> {
+        todo!("read buf.len() registers from reg")
+    }
 }
 ```
 

@@ -15,3 +15,8 @@ pub mod scdc;
 /// The FRL rate, as `HdmiPhy::set_frl_rate` takes it; re-exported from `display-types` so
 /// that implementations name the same type hdmi-hal does.
 pub use display_types::cea861::hdmi_forum::HdmiForumFrl;
+
+// Compiles and runs the README's examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

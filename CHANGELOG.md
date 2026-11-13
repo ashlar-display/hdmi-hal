@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- **The README's Rust examples run as doctests** (`ReadmeDoctests` in `lib.rs`, compiled
+  only for `cargo test`), so they are checked against the traits. The backend example is a
+  sketch: its error type is defined (hidden) and its bodies are `todo!()`, so it compiles
+  without running.
+
 ## [0.6.1] - 2026-11-02
 
 ### Changed
