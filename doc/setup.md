@@ -71,3 +71,11 @@ opens a PR raising the baseline when a push improves it.
 ```sh
 cargo run --locked --manifest-path examples/simulate/Cargo.toml
 ```
+
+The example is its own workspace with a tracked `Cargo.lock`, which records hdmi-hal's
+version and dependencies through the path dependency. After changing `Cargo.toml`,
+refresh it and commit it, or the `--locked` run (here and in CI) fails:
+
+```sh
+cargo check --manifest-path examples/simulate/Cargo.toml
+```
