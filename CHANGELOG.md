@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `-D warnings`, the tests, the bare-metal build, the example, the MSRV and coverage), and
   its publishing section names display-types and the crates that depend on hdmi-hal
   instead of the placeholder names `scdc` and `frl-training`.
+- **The README's documentation list links `doc/setup.md`, `doc/testing.md` and
+  `CONTRIBUTING.md`.**
 
 ## [0.6.1] - 2026-11-02
 
