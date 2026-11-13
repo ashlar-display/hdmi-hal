@@ -26,6 +26,9 @@ is fine.
 - Public items need rustdoc comments, and intra-doc links must resolve
   (`cargo rustdoc --all-features -- -D warnings` must pass).
 - `#![forbid(unsafe_code)]` is enforced; no unsafe code.
+- A claim about HDMI behaviour (a rule, a default, a threshold, a register encoding) cites
+  at least two independent public implementations (repository, commit, file and line).
+  Where implementations differ, the behaviour is a setting with the majority as default.
 - All traits and public types must be usable in bare `no_std` environments. No trait
   method may require allocation.
 - All public structs and enums must be `#[non_exhaustive]`.
@@ -37,7 +40,7 @@ is fine.
   three commits (or three PRs).
 - CI must be green before a PR can merge: fmt, clippy, docs, the tests, the bare-metal
   `no_std` build and the simulate example, the same tests and build on the MSRV
-  (Rust 1.85), and coverage must not drop more than 0.1% below the baseline (stored in
+  (Rust 1.85), and coverage must not drop more than 0.1 points below the baseline (stored in
   `.coverage-baseline`).
 
 ## Trait stability

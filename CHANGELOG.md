@@ -60,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the new version, as it does `Cargo.lock`, and Dependabot keeps it current.
 - **The publish workflow's `verify` job fails on a `[patch]` section** too, as `ci.yml`
   does on `main`: the release does not wait for `main`'s CI.
+- **`CONTRIBUTING.md` states the provenance rule** for claims about HDMI behaviour (two
+  independent public implementations, cited), and the coverage tolerance as 0.1 points,
+  as CI checks it, not 0.1%.
 
 ## [0.6.1] - 2026-11-02
 
