@@ -53,8 +53,9 @@ known consumers in the stack.
 ## Publishing and downstream dependencies
 
 hdmi-hal builds on [display-types](https://github.com/ashlar-display/display-types) and
-re-exports the types its traits use, so a breaking release of display-types is a breaking
-release of hdmi-hal. The protocol and link crates of
+re-exports the types its traits use, so moving to a breaking release of display-types is a
+breaking release of hdmi-hal, unless the version requirement keeps accepting the old
+release as well. The protocol and link crates of
 [Ashlar](https://ashlar-display.org/crates.html) and platform backends depend on hdmi-hal
 as a versioned crate dependency. Changes that add or modify public API must be merged,
 tagged, and published to crates.io before downstream crates can adopt them. The workflow
