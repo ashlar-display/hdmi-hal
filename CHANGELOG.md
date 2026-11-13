@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only for `cargo test`), so they are checked against the traits. The backend example is a
   sketch: its error type is defined (hidden) and its bodies are `todo!()`, so it compiles
   without running.
+- **The published `.crate` holds only what the crate needs**: `include` in `Cargo.toml`
+  limits it to the sources, `doc/`, the README, changelog and license; it also shipped the
+  CI workflows, Dependabot configuration, coverage baseline and the example crate.
 
 ## [0.6.1] - 2026-11-02
 
