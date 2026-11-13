@@ -64,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   independent public implementations, cited), and the coverage tolerance as 0.1 points,
   as CI checks it, not 0.1%.
 - **`doc/setup.md` says to refresh the example's lock file** after changing `Cargo.toml`.
+- **The simulate example is format-checked and linted**, in CI and in the publish
+  workflow's `verify` job; as its own workspace, the root `cargo fmt` and `clippy` did not
+  reach it.
 
 ## [0.6.1] - 2026-11-02
 

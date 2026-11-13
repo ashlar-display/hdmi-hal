@@ -70,6 +70,13 @@ jobs:
       - name: Build (no_std)
         run: cargo build --locked --no-default-features --target thumbv7em-none-eabi
 
+      # The example is its own workspace, which the root fmt and clippy do not reach.
+      - name: Format check (simulate example)
+        run: cargo fmt --check --manifest-path examples/simulate/Cargo.toml
+
+      - name: Clippy (simulate example)
+        run: cargo clippy --locked --manifest-path examples/simulate/Cargo.toml -- -D warnings
+
       # It simulates the hardware, so it runs here; its lockfile is tracked.
       - name: Run simulate example
         run: cargo run --locked --manifest-path examples/simulate/Cargo.toml
