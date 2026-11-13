@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (1.85) with `cargo msrv verify`; the crate declared it, and nothing checked it.
 - **`doc/testing.md` describes the tests**: what each module's unit tests check, the
   doctests, the simulate example, the builds CI runs and the coverage ratchet.
+- **`doc/setup.md` lists the checks CI runs**: clippy over all targets, rustdoc with
+  `-D warnings`, the tests, the bare-metal build, the MSRV check, coverage and the simulate
+  example.
 
 ## [0.6.1] - 2026-11-02
 
