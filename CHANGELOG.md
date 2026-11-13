@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The simulate example's `Cargo.lock` is tracked**, so CI can run the example with
   `--locked` (it failed: Cargo refused to create the lock file). Release-prep refreshes it
   with the new version, as it does `Cargo.lock`, and Dependabot keeps it current.
+- **The publish workflow's `verify` job fails on a `[patch]` section** too, as `ci.yml`
+  does on `main`: the release does not wait for `main`'s CI.
 
 ## [0.6.1] - 2026-11-02
 
