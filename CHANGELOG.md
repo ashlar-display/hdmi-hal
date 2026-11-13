@@ -70,6 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The README says the crate is `no_std`** and needs no allocator.
 - **The coverage job runs cargo with `--locked`**, as the other jobs do, so it measures
   the build the tests ran; `doc/setup.md`'s commands match.
+- **The MSRV job shows why it failed**: `cargo msrv verify` runs without
+  `--output-format minimal`, which printed only `true` or `false` and dropped the compiler
+  error.
 
 ## [0.6.1] - 2026-11-02
 
