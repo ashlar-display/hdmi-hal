@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without running.
 - **The published `.crate` holds only what the crate needs**: `include` in `Cargo.toml`
   limits it to the sources, `doc/`, the README, changelog and license; it also shipped the
-  CI workflows, Dependabot configuration, coverage baseline and the example crate.
+  CI workflows, Dependabot configuration, coverage baseline, `.gitignore` and
+  `CONTRIBUTING.md`.
 - **`#![deny(missing_docs)]` in `lib.rs`**: an undocumented public item fails a local
   build, not only CI's rustdoc step.
 - **CI runs with a read-only token by default**: `ci.yml` sets `permissions: contents: read`;
