@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of the placeholder names `scdc` and `frl-training`.
 - **The README's documentation list links `doc/setup.md`, `doc/testing.md` and
   `CONTRIBUTING.md`.**
+- **The coverage job's cache is keyed on the Rust version** as well as `Cargo.lock`, so a
+  `target/` built by an older Rust is not restored: `cargo llvm-cov clean --workspace`
+  leaves its instrumented binaries behind, and the report would count their lines as
+  uncovered (it did so in other Ashlar crates after the update to Rust 1.100).
 
 ## [0.6.1] - 2026-11-02
 
