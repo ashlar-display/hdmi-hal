@@ -98,8 +98,9 @@ jobs:
       - name: Build (no_std)
         run: cargo build --locked --no-default-features --target thumbv7em-none-eabi
 
-      - name: Build simulate example
-        run: cargo build --manifest-path examples/simulate/Cargo.toml
+      # It simulates the hardware, so it runs here; its lockfile is tracked.
+      - name: Run simulate example
+        run: cargo run --locked --manifest-path examples/simulate/Cargo.toml
 
   # What is about to be released, shown on the run page while the publish job
   # waits for approval in the `release` environment. Packages the crate the same

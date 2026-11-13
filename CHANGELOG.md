@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `verify` job; it linted only the library.
 - **rustdoc runs with `-D warnings`**, as docs.rs builds, in CI and in the publish
   workflow's `verify` job: `-D missing_docs` alone let broken intra-doc links through.
+- **CI runs the simulate example**, not only builds it, with `--locked` (its lockfile is
+  tracked), in `ci.yml` and in the publish workflow's `verify` job.
 
 ## [0.6.1] - 2026-11-02
 
