@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The published `.crate` holds only what the crate needs**: `include` in `Cargo.toml`
   limits it to the sources, `doc/`, the README, changelog and license; it also shipped the
   CI workflows, Dependabot configuration, coverage baseline and the example crate.
+- **`#![deny(missing_docs)]` in `lib.rs`**: an undocumented public item fails a local
+  build, not only CI's rustdoc step.
 
 ## [0.6.1] - 2026-11-02
 
