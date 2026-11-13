@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The README's Ashlar block links the stack's crate list** instead of naming every crate,
+  so it no longer goes stale on crates.io when a crate is added.
+
 ### Internal
 
 - **The README's Rust examples run as doctests** (`ReadmeDoctests` in `lib.rs`, compiled
