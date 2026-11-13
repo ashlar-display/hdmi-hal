@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `target/` built by an older Rust is not restored: `cargo llvm-cov clean --workspace`
   leaves its instrumented binaries behind, and the report would count their lines as
   uncovered (it did so in other Ashlar crates after the update to Rust 1.100).
+- **The simulate example's `Cargo.lock` is tracked**, so CI can run the example with
+  `--locked` (it failed: Cargo refused to create the lock file). Release-prep refreshes it
+  with the new version, as it does `Cargo.lock`, and Dependabot keeps it current.
 
 ## [0.6.1] - 2026-11-02
 
