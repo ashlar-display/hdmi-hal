@@ -13,6 +13,7 @@
 //! operation it cannot do fails with [`DdcErrorKind::Unsupported`] before it reaches the bus.
 
 use core::convert::Infallible;
+use core::ops::Deref;
 
 /// The E-DDC segment pointer (8-bit address 60h), written before an EDID or DisplayID read
 /// of segment 1 or higher (VESA E-DDC 1.3, 2.2.5).
@@ -213,6 +214,65 @@ pub trait DdcBus {
         offset: u8,
         buf: &mut [u8],
     ) -> Result<(), Self::Error>;
+}
+
+/// A handle to a [`DdcBus`]: what code that shares the bus holds.
+///
+/// Implemented for every handle that dereferences to a bus (`&B`, `&'static B`, `Rc<B>`,
+/// `Arc<B>`), with no `alloc` needed. A handle that is itself a cheap, `Copy` view of a bus
+/// (a test double's, for instance) implements it for itself, so it is passed by value:
+///
+/// ```
+/// use hdmi_hal::ddc::{DdcBus, DdcCapabilities, DdcHandle, EddcTarget};
+///
+/// /// A `Copy` view of some bus.
+/// #[derive(Clone, Copy)]
+/// struct View;
+///
+/// impl DdcBus for View {
+///     type Error = hdmi_hal::ddc::DdcErrorKind;
+///     fn capabilities(&self) -> DdcCapabilities {
+///         DdcCapabilities::none()
+///     }
+///     fn write(&self, _: u8, _: &[u8]) -> Result<(), Self::Error> {
+///         Ok(())
+///     }
+///     fn write_read(&self, _: u8, _: &[u8], _: &mut [u8]) -> Result<(), Self::Error> {
+///         Ok(())
+///     }
+///     fn read(&self, _: u8, _: &mut [u8]) -> Result<(), Self::Error> {
+///         Ok(())
+///     }
+///     fn read_segmented(&self, _: EddcTarget, _: u8, _: u8, _: &mut [u8]) -> Result<(), Self::Error> {
+///         Ok(())
+///     }
+/// }
+///
+/// impl DdcHandle for View {
+///     type Bus = Self;
+///     fn bus(&self) -> &Self {
+///         self
+///     }
+/// }
+/// ```
+pub trait DdcHandle {
+    /// The bus it is a handle to.
+    type Bus: DdcBus + ?Sized;
+
+    /// The bus.
+    fn bus(&self) -> &Self::Bus;
+}
+
+impl<H> DdcHandle for H
+where
+    H: Deref,
+    H::Target: DdcBus,
+{
+    type Bus = H::Target;
+
+    fn bus(&self) -> &H::Target {
+        self
+    }
 }
 
 /// An error of a [`DdcBus`], classified.

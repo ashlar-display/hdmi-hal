@@ -224,8 +224,10 @@ hardware that can guarantee it does so below, in its HDCP engine.
 four or five users, often in different crates and tasks. The implementation serializes
 concurrent calls, one transaction at a time, and never panics doing so; one that cannot
 serialize returns an error for the second call and says so. Users hold a handle to the bus:
-code over `DdcBus` is generic over `H: Deref<Target: DdcBus>`, so it takes `&B`,
-`&'static B`, `Rc<B>` or `Arc<B>` alike, with no `alloc` needed. There are no forwarding
+code over `DdcBus` is generic over `H: DdcHandle`, implemented for every handle that
+dereferences to a bus, so it takes `&B`, `&'static B`, `Rc<B>` or `Arc<B>` alike, with no
+`alloc` needed; a `Copy` view of a bus (a test double's) implements `DdcHandle` for itself
+and is passed by value. There are no forwarding
 implementations (`impl DdcBus for &B`): in `hdmi-hal-async` one would conflict with the
 `Send` twin's blanket implementation, and the sync crate keeps the same shape. The
 alternative, `&mut self` with bus-sharing wrappers as embedded-hal has, was rejected: every
@@ -267,7 +269,7 @@ across calls; none of the reference implementations needs them.
 #### `ScdcOverDdc`
 
 `scdc::ScdcOverDdc<H>` is the `ScdcTransport` over a `DdcBus`, for any handle
-`H: Deref<Target: DdcBus>`: `read` and `read_block` are one `write_read` at 0x54 each,
+`H: DdcHandle`: `read` and `read_block` are one `write_read` at 0x54 each,
 `write` one `write`, and its error is the bus's. It is glue between two of this crate's own
 traits, which is why it lives here rather than in a platform crate, and a type rather than a
 blanket implementation, which would conflict with `hdmi-hal-async`'s blanket for

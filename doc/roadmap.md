@@ -36,8 +36,9 @@ release fixes them:
     byte, or unknown), timeout, busy, unsupported, detached, other.
   - **Capabilities** say what the hardware can do and never more: per-operation length limits,
     reachable addresses, the highest E-DDC segment, whether reads are split on the wire.
-  - **`scdc::ScdcOverDdc`** implements `ScdcTransport` over a `DdcBus`, generic over any handle
-    that dereferences to the bus (`&B`, `Rc<B>`, `Arc<B>`), so several users share one bus.
+  - **`scdc::ScdcOverDdc`** implements `ScdcTransport` over a `DdcBus`, generic over any
+    `ddc::DdcHandle`: a handle that dereferences to the bus (`&B`, `Rc<B>`, `Arc<B>`), or a
+    `Copy` view of a bus that is its own handle, so several users share one bus.
     It is a type rather than a blanket impl, which would conflict with hdmi-hal-async's
     `SendScdcTransport` blanket.
   - **`ScdcTransport::Error`** gets the same `DdcError` bound, implemented for `Infallible`

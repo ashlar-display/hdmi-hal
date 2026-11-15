@@ -1,6 +1,4 @@
-use core::ops::Deref;
-
-use crate::ddc::{DdcBus, DdcError, SCDC};
+use crate::ddc::{DdcBus, DdcError, DdcHandle, SCDC};
 
 /// Raw register access to the SCDC register map over DDC/I²C.
 ///
@@ -140,8 +138,9 @@ pub fn read_block_bytewise<T: ScdcTransport + ?Sized>(
 ///   transaction instead ([`read_block_bytewise`]): the documented exception, for a bus
 ///   that cannot read 16 registers in one transaction.
 ///
-/// It holds a handle to the bus, anything that dereferences to it (`&B`, `Rc<B>`,
-/// `Arc<B>`), so other users of the bus (an EDID reader, an HDCP implementation) share it.
+/// It holds a [`DdcHandle`] to the bus: anything that dereferences to it (`&B`, `Rc<B>`,
+/// `Arc<B>`), or a `Copy` view of a bus that is its own handle, so other users of the bus (an
+/// EDID reader, an HDCP implementation) share it.
 /// Its errors are the bus's.
 ///
 /// ```
@@ -196,11 +195,7 @@ pub struct ScdcOverDdc<H> {
     bytewise: bool,
 }
 
-impl<H> ScdcOverDdc<H>
-where
-    H: Deref,
-    H::Target: DdcBus,
-{
+impl<H: DdcHandle> ScdcOverDdc<H> {
     /// SCDC over `bus`, with `read_block` in one transaction.
     ///
     /// Returns the handle back when the bus cannot serve [`ScdcTransport`]: when it does not
@@ -220,7 +215,7 @@ where
     }
 
     fn checked(bus: H, min_read: u16, bytewise: bool) -> Result<Self, H> {
-        let caps = bus.capabilities();
+        let caps = bus.bus().capabilities();
         let (write_part, read_part) = caps.write_read_max();
         if caps.reaches(SCDC) && caps.write_max() >= 2 && write_part >= 1 && read_part >= min_read {
             Ok(ScdcOverDdc { bus, bytewise })
@@ -240,28 +235,24 @@ where
     }
 }
 
-impl<H> ScdcTransport for ScdcOverDdc<H>
-where
-    H: Deref,
-    H::Target: DdcBus,
-{
-    type Error = <H::Target as DdcBus>::Error;
+impl<H: DdcHandle> ScdcTransport for ScdcOverDdc<H> {
+    type Error = <H::Bus as DdcBus>::Error;
 
     fn read(&self, reg: u8) -> Result<u8, Self::Error> {
         let mut value = [0u8];
-        self.bus.write_read(SCDC, &[reg], &mut value)?;
+        self.bus.bus().write_read(SCDC, &[reg], &mut value)?;
         Ok(value[0])
     }
 
     fn write(&mut self, reg: u8, value: u8) -> Result<(), Self::Error> {
-        self.bus.write(SCDC, &[reg, value])
+        self.bus.bus().write(SCDC, &[reg, value])
     }
 
     fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Self::Error> {
         if self.bytewise {
             read_block_bytewise(self, reg, buf)
         } else {
-            self.bus.write_read(SCDC, &[reg], buf)
+            self.bus.bus().write_read(SCDC, &[reg], buf)
         }
     }
 }
@@ -270,6 +261,7 @@ where
 mod tests {
     use super::*;
     use core::cell::Cell;
+    use core::ops::Deref;
 
     /// A failed read, carrying its register.
     #[derive(Debug, PartialEq)]
@@ -572,5 +564,51 @@ mod tests {
         let bus = Bus::scdc(32);
         let scdc = ScdcOverDdc::new(Handle(&bus)).ok().unwrap();
         assert_eq!(scdc.read(0x07), Ok(0x07));
+    }
+
+    /// A `Copy` view of a bus that is its own handle.
+    #[derive(Clone, Copy)]
+    struct View<'a>(&'a Bus);
+
+    impl DdcBus for View<'_> {
+        type Error = DdcErrorKind;
+        fn capabilities(&self) -> crate::ddc::DdcCapabilities {
+            self.0.capabilities()
+        }
+        fn write(&self, addr: u8, bytes: &[u8]) -> Result<(), DdcErrorKind> {
+            self.0.write(addr, bytes)
+        }
+        fn write_read(&self, addr: u8, bytes: &[u8], buf: &mut [u8]) -> Result<(), DdcErrorKind> {
+            self.0.write_read(addr, bytes, buf)
+        }
+        fn read(&self, addr: u8, buf: &mut [u8]) -> Result<(), DdcErrorKind> {
+            self.0.read(addr, buf)
+        }
+        fn read_segmented(
+            &self,
+            target: EddcTarget,
+            segment: u8,
+            offset: u8,
+            buf: &mut [u8],
+        ) -> Result<(), DdcErrorKind> {
+            self.0.read_segmented(target, segment, offset, buf)
+        }
+    }
+
+    impl DdcHandle for View<'_> {
+        type Bus = Self;
+        fn bus(&self) -> &Self {
+            self
+        }
+    }
+
+    #[test]
+    fn over_ddc_takes_a_copy_handle_by_value() {
+        let bus = Bus::scdc(32);
+        let view = View(&bus);
+        let scdc = ScdcOverDdc::new(view).ok().unwrap();
+        assert_eq!(scdc.read(0x07), Ok(0x07));
+        // The view is still the caller's: it is Copy.
+        assert_eq!(view.capabilities(), bus.capabilities());
     }
 }

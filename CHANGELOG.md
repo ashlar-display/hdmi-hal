@@ -73,8 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DISPLAYID`, `SCDC`, `HDCP_PRIMARY`, `HDCP_SECONDARY`, `DDC_CI`), and
   `is_usable_address`.
 - **`scdc::ScdcOverDdc`, `ScdcTransport` over a `DdcBus`.** Reads and block reads are one
-  `write_read` at 0x54 each, writes one `write`; it holds any handle that dereferences to the
-  bus (`&B`, `Rc<B>`, `Arc<B>`), so other users share the bus. `new` and `bytewise` (block
+  `write_read` at 0x54 each, writes one `write`; it holds any `ddc::DdcHandle`, so other
+  users share the bus.
+- **`ddc::DdcHandle`**, a handle to a `DdcBus`: implemented for every handle that
+  dereferences to a bus (`&B`, `Rc<B>`, `Arc<B>`), and by a `Copy` view of a bus for itself,
+  so it is passed by value. `new` and `bytewise` (block
   reads one register per transaction, the documented exception) return the handle when the
   bus cannot serve SCDC.
 - **`DdcErrorKind` implements `DdcError`**, for an implementation with nothing more to report.
