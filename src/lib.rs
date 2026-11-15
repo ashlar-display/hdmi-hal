@@ -6,6 +6,7 @@
 
 #![no_std]
 #![forbid(unsafe_code)]
+#![deny(missing_docs)]
 
 pub mod cancel;
 
@@ -26,3 +27,8 @@ pub use display_types::cea861::hdmi_forum::HdmiForumFrl;
 /// The colour depth and format `phy::TmdsVideo` carries; re-exported from `display-types`
 /// so that implementations name the same types hdmi-hal does.
 pub use display_types::{ColorBitDepth, ColorFormat};
+
+// Compiles and runs the README's examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
