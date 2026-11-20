@@ -14,12 +14,15 @@
 
 Hardware abstraction traits for the HDMI stack.
 
-`hdmi-hal` defines the behavioral contracts between protocol logic and hardware. It is a
-traits-only crate: no implementations live here. Every trait expresses an I/O boundary
-that multiple crates in the stack need to cross in a compatible way — raw SCDC register
-access over DDC/I²C, and HDMI 2.1 transmitter PHY control (what FRL link training needs:
-rate, training patterns, output mode, scrambling and TxFFE levels). Further PHY
-configuration is on the [roadmap](doc/roadmap.md).
+`hdmi-hal` defines the behavioral contracts between protocol logic and hardware. It holds
+traits, and the glue between its own traits: no hardware, platform or clock
+implementations, no policy. Every trait expresses an I/O boundary that multiple crates in
+the stack need to cross in a compatible way — the DDC bus (any target on it, and E-DDC
+reads of EDID and DisplayID), raw SCDC register access, transmitter PHY control by link
+mode (what FRL link training needs: rate, training patterns, output mode and TxFFE levels;
+what TMDS bring-up needs: character rate, clock ratio, the scrambler, output on and off),
+PHY power, and a clock and delay. Further PHY configuration is on the
+[roadmap](doc/roadmap.md).
 
 ## Usage
 ```sh
@@ -29,11 +32,18 @@ cargo add hdmi-hal
 Implement a trait against your hardware backend:
 
 ```rust
+use hdmi_hal::ddc::{DdcError, DdcErrorKind};
 use hdmi_hal::scdc::ScdcTransport;
 
 struct MyI2cBackend { /* ... */ }
 # #[derive(Debug)]
 # struct MyError;
+
+// Every transport error says what kind of failure it was, so generic code can tell a sink
+// that does not answer from a bus that timed out or is gone.
+impl DdcError for MyError {
+    fn kind(&self) -> DdcErrorKind { todo!("classify the error") }
+}
 
 impl ScdcTransport for MyI2cBackend {
     type Error = MyError;
@@ -62,7 +72,7 @@ fn configure_frl<T: ScdcTransport>(transport: &mut T) -> Result<(), T::Error> {
 }
 ```
 
-For a complete worked example of both traits with a simulated backend, see
+For a complete worked example of `ScdcTransport` and `FrlPhy` with a simulated backend, see
 [`examples/simulate`](examples/simulate/).
 
 ## `no_std`
@@ -89,7 +99,7 @@ flowchart LR
     hal --> be
 ```
 
-Async variants of both traits live in the companion crate `hdmi-hal-async`, following
+Async variants of each trait live in the companion crate `hdmi-hal-async`, following
 the same split as `embedded-hal` / `embedded-hal-async`.
 
 ## Out of scope
@@ -99,7 +109,7 @@ the same split as `embedded-hal` / `embedded-hal-async`.
 - **Implementations** — concrete platform backends (kernel I²C drivers, simulator
   harnesses, test doubles) live in the crates that use these traits.
 - **PHY vendor backends** — hardware-specific register sequences belong in platform
-  crates that implement `HdmiPhy`.
+  crates that implement `FrlPhy` and `TmdsPhy`.
 - **CEC or eARC protocol logic** — only the wire-access primitive will belong here;
   protocol state machines are in their own crates.
 
