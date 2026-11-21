@@ -608,7 +608,21 @@ mod tests {
         let view = View(&bus);
         let scdc = ScdcOverDdc::new(view).ok().unwrap();
         assert_eq!(scdc.read(0x07), Ok(0x07));
-        // The view is still the caller's: it is Copy.
+        // The view is still the caller's: it is Copy, and forwards every call to its bus.
         assert_eq!(view.capabilities(), bus.capabilities());
+        assert_eq!(
+            view.write(SCDC, &[0x30, 0x01]),
+            bus.write(SCDC, &[0x30, 0x01])
+        );
+        let (mut through_view, mut direct) = ([0u8; 1], [0u8; 1]);
+        assert_eq!(
+            view.read(SCDC, &mut through_view),
+            bus.read(SCDC, &mut direct)
+        );
+        assert_eq!(
+            view.read_segmented(EddcTarget::Edid, 0, 0, &mut through_view),
+            bus.read_segmented(EddcTarget::Edid, 0, 0, &mut direct)
+        );
+        assert_eq!(through_view, direct);
     }
 }
