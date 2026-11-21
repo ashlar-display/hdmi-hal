@@ -10,24 +10,19 @@
 
 > **Part of [Ashlar](https://ashlar-display.org)** — a display connection stack in Rust,
 > HDMI 2.1 first: from EDID parsing through mode negotiation to FRL link training.
->
-> [display-types](https://github.com/ashlar-display/display-types) ·
-> [piaf](https://github.com/ashlar-display/piaf) ·
-> [concordance](https://github.com/ashlar-display/concordance) ·
-> [cartouche](https://github.com/ashlar-display/cartouche) ·
-> [culvert](https://github.com/ashlar-display/culvert) ·
-> [plumbob](https://github.com/ashlar-display/plumbob) ·
-> **hdmi-hal** ·
-> [hdmi-hal-i2c-dev](https://github.com/ashlar-display/hdmi-hal-i2c-dev)
+> See [all crates](https://ashlar-display.org/crates.html).
 
 Hardware abstraction traits for the HDMI stack.
 
-`hdmi-hal` defines the behavioral contracts between protocol logic and hardware. It is a
-traits-only crate: no implementations live here. Every trait expresses an I/O boundary
-that multiple crates in the stack need to cross in a compatible way — raw SCDC register
-access over DDC/I²C, and HDMI 2.1 transmitter PHY control (what FRL link training needs:
-rate, training patterns, output mode, scrambling and TxFFE levels). Further PHY
-configuration is on the [roadmap](doc/roadmap.md).
+`hdmi-hal` defines the behavioral contracts between protocol logic and hardware. It holds
+traits, and the glue between its own traits: no hardware, platform or clock
+implementations, no policy. Every trait expresses an I/O boundary that multiple crates in
+the stack need to cross in a compatible way — the DDC bus (any target on it, and E-DDC
+reads of EDID and DisplayID), raw SCDC register access, transmitter PHY control by link
+mode (what FRL link training needs: rate, training patterns, output mode and TxFFE levels;
+what TMDS bring-up needs: character rate, clock ratio, the scrambler, output on and off),
+PHY power, and a clock and delay. Further PHY configuration is on the
+[roadmap](doc/roadmap.md).
 
 ## Usage
 ```sh
@@ -37,21 +32,32 @@ cargo add hdmi-hal
 Implement a trait against your hardware backend:
 
 ```rust
+use hdmi_hal::ddc::{DdcError, DdcErrorKind};
 use hdmi_hal::scdc::ScdcTransport;
 
 struct MyI2cBackend { /* ... */ }
+# #[derive(Debug)]
+# struct MyError;
+
+// Every transport error says what kind of failure it was, so generic code can tell a sink
+// that does not answer from a bus that timed out or is gone.
+impl DdcError for MyError {
+    fn kind(&self) -> DdcErrorKind { todo!("classify the error") }
+}
 
 impl ScdcTransport for MyI2cBackend {
     type Error = MyError;
 
-    fn read(&self, reg: u8) -> Result<u8, MyError> { /* ... */ }
-    fn write(&mut self, reg: u8, value: u8) -> Result<(), MyError> { /* ... */ }
+    fn read(&self, reg: u8) -> Result<u8, MyError> { todo!("read one register") }
+    fn write(&mut self, reg: u8, value: u8) -> Result<(), MyError> { todo!("write one register") }
 
     // One DDC transaction for the whole buffer (a length limit, if any, of at least
     // 16 bytes). A backend that cannot burst-read
     // implements this with `hdmi_hal::scdc::read_block_bytewise(self, reg, buf)` and
     // says so: its reads are then one register at a time.
-    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), MyError> { /* ... */ }
+    fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), MyError> {
+        todo!("read buf.len() registers from reg")
+    }
 }
 ```
 
@@ -66,8 +72,13 @@ fn configure_frl<T: ScdcTransport>(transport: &mut T) -> Result<(), T::Error> {
 }
 ```
 
-For a complete worked example of both traits with a simulated backend, see
+For a complete worked example of `ScdcTransport` and `FrlPhy` with a simulated backend, see
 [`examples/simulate`](examples/simulate/).
+
+## `no_std`
+
+`hdmi-hal` is `#![no_std]` and needs no allocator, so the traits can be implemented on
+bare-metal targets as well as in a Linux userspace backend.
 
 ## Stack position
 
@@ -88,7 +99,7 @@ flowchart LR
     hal --> be
 ```
 
-Async variants of both traits live in the companion crate `hdmi-hal-async`, following
+Async variants of each trait live in the companion crate `hdmi-hal-async`, following
 the same split as `embedded-hal` / `embedded-hal-async`.
 
 ## Out of scope
@@ -98,14 +109,17 @@ the same split as `embedded-hal` / `embedded-hal-async`.
 - **Implementations** — concrete platform backends (kernel I²C drivers, simulator
   harnesses, test doubles) live in the crates that use these traits.
 - **PHY vendor backends** — hardware-specific register sequences belong in platform
-  crates that implement `HdmiPhy`.
+  crates that implement `FrlPhy` and `TmdsPhy`.
 - **CEC or eARC protocol logic** — only the wire-access primitive will belong here;
   protocol state machines are in their own crates.
 
 ## Documentation
 
 - [`doc/architecture.md`](doc/architecture.md) — trait surfaces, design principles, async story, and stack position
+- [`doc/setup.md`](doc/setup.md) — build, test, `no_std`, MSRV and coverage commands
+- [`doc/testing.md`](doc/testing.md) — what the tests check and how CI runs them
 - [`doc/roadmap.md`](doc/roadmap.md) — planned features and future work
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute, and trait stability
 
 ## Verifying releases
 
