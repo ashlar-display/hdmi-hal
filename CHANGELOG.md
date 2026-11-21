@@ -74,12 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `is_usable_address`.
 - **`scdc::ScdcOverDdc`, `ScdcTransport` over a `DdcBus`.** Reads and block reads are one
   `write_read` at 0x54 each, writes one `write`; it holds any `ddc::DdcHandle`, so other
-  users share the bus.
+  users share the bus. `new` and `bytewise` (block reads one register per transaction, the
+  documented exception) return the handle when the bus cannot serve SCDC.
 - **`ddc::DdcHandle`**, a handle to a `DdcBus`: implemented for every handle that
   dereferences to a bus (`&B`, `Rc<B>`, `Arc<B>`), and by a `Copy` view of a bus for itself,
-  so it is passed by value. `new` and `bytewise` (block
-  reads one register per transaction, the documented exception) return the handle when the
-  bus cannot serve SCDC.
+  so it is passed by value.
 - **`DdcErrorKind` implements `DdcError`**, for an implementation with nothing more to report.
 - The crate's scope, as its docs now say: traits and the glue between its own traits
   (`read_block_bytewise`, `ScdcOverDdc`); no hardware, platform or clock implementations,
